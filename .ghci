@@ -1,0 +1,3 @@
+:set prompt "list-animate>"
+:set prompt2 "list-animate|"
+:set prompt-cont "list-animate|"
