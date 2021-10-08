@@ -1,3 +1,5 @@
 .stack-work/
 haddock/
+*.lock
 *~
+.DS_Store
