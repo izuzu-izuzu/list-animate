@@ -71,11 +71,3 @@ packages:
 # See https://haskell-language-server.readthedocs.io/en/latest/features.html
 ghc-options:
   "$everything": -haddock
-
-build:
-  haddock: true
-  haddock-arguments:
-    haddock-args:
-    - "--odir=haddock/"
-
-
