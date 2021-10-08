@@ -21,12 +21,20 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- reanimate
+- reanimate-svg
+- linear
+- text
+- lens
+- JuicyPixels
+- raw-strings-qq
+- pretty-simple
 
 library:
   source-dirs: src
   when: # See https://github.com/commercialhaskell/stack/issues/5439
   - condition: false
-    other-modules: Paths_list_animations
+    other-modules: Paths_list_animate
 
 executables:
   list-animate-exe:
@@ -40,7 +48,7 @@ executables:
     - list-animate
     when: # See https://github.com/commercialhaskell/stack/issues/5439
     - condition: false
-      other-modules: Paths_list_animations
+      other-modules: Paths_list_animate
 
 tests:
   list-animate-test:
@@ -54,4 +62,4 @@ tests:
     - list-animate
     when: # See https://github.com/commercialhaskell/stack/issues/5439
     - condition: false
-      other-modules: Paths_list_animations
+      other-modules: Paths_list_animate
