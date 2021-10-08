@@ -24,6 +24,9 @@ dependencies:
 
 library:
   source-dirs: src
+  when: # See https://github.com/commercialhaskell/stack/issues/5439
+  - condition: false
+    other-modules: Paths_list_animations
 
 executables:
   list-animate-exe:
@@ -35,6 +38,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - list-animate
+    when: # See https://github.com/commercialhaskell/stack/issues/5439
+    - condition: false
+      other-modules: Paths_list_animations
 
 tests:
   list-animate-test:
@@ -46,3 +52,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - list-animate
+    when: # See https://github.com/commercialhaskell/stack/issues/5439
+    - condition: false
+      other-modules: Paths_list_animations
