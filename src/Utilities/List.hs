@@ -48,6 +48,9 @@ module Utilities.List
     -- ** @list5@
     , list5Boxes
     , list5Labels
+    -- * Building custom lists
+    , customListBoxes
+    , customListLabels
     )
 where
 
@@ -254,3 +257,26 @@ list5Labels color name =
         , name <> "\\textsubscript{2}"
         , "..."
         ]
+
+{-|
+    Create custom list boxes from the given box widths and color.
+-}
+customListBoxes :: [Double] -> String -> [SVG]
+customListBoxes widths color =
+    fmap (withColor color . withDefaultLineStrokeFill)
+    . zipWith ($) offsets
+    . fmap (\w -> mkRect w 1)
+    $ widths
+    where
+        offsets = (\dx -> translate dx 0) <$> distribute1D widths
+
+{-|
+    Create custom text labels from the given box widths, color and text.
+-}
+customListLabels :: [Double] -> String -> [Text] -> [SVG]
+customListLabels widths color =
+    fmap (withColor color . withDefaultTextStrokeFill)
+    . zipWith ($) offsets
+    . fmap (centerX . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale)
+    where
+        offsets = (\dx -> translate dx 0) <$> distribute1D widths

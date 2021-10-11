@@ -7,17 +7,16 @@
     Basic utility functions.
 -}
 module Utilities.Main
-    (
-    -- * Convenience functions
+    ( -- * Convenience functions
       (-<)
     , splitInitLast
-    -- * LaTeX
-    -- ** Configurations
+      -- * LaTeX
+      -- ** Configurations
     , firaMonoCfg
-    -- ** Invoking LaTeX
+      -- ** Invoking LaTeX
     , latexCfgCenteredYWith
-    -- * SVG
-    -- ** Attributes
+      -- * SVG
+      -- ** Attributes
     , withDefaultTextScale
     , withDefaultTextStrokeFill
     , withDefaultBoldTextStrokeFill
@@ -27,39 +26,46 @@ module Utilities.Main
     , withTweenedColor
     , withTweenedStrokeColor
     , withTweenedFillColor
-    -- ** Transformations
+      -- ** Transformations
     , distribute1D
     , distributeX
     , distributeY
     , distributeWithSpacingX
     , distributeWithSpacingY
-    -- * Scenes
+      -- * Scenes
     , forkLag
     , forkAll
     , forkAllWithLag
     , forkAllWithDifferentLags
-    -- * Objects
+      -- * Objects
     , oMoveTo
+    , oMoveBy
     , oTweenContext
-    -- * Other
+      -- * Other
+    , snapInS
+    , snapOutS
+    , cssCubicBezierS
     , mkColorPixel
     , mkBackgroundAxes
     , mkBackgroundGrid
-    )
-where
+    ) where
 
 import Codec.Picture (PixelRGBA8)
+
 import Control.Lens ((%~))
+
 import Data.List (intersperse)
 import Data.Text (Text)
-import Graphics.SvgTree (Texture (ColorRef))
-import Linear.V2 (V2 (V2))
-import Linear.Vector (lerp)
+
+import Graphics.SvgTree (Texture(ColorRef))
+
+import Linear (V2(V2), lerp)
 
 import Reanimate
 import Reanimate.ColorComponents (interpolateRGBA8, labComponents)
-import Reanimate.LaTeX (TexConfig (TexConfig), TexEngine (LaTeX), latexCfg)
+import Reanimate.LaTeX (TexConfig(TexConfig), TexEngine(LaTeX), latexCfg)
 import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween)
+import Data.List (find)
 
 infixl 1 -<
 
@@ -79,14 +85,16 @@ splitInitLast :: [a] -> Maybe ([a], a)
 splitInitLast [] = Nothing
 splitInitLast [x] = Just ([], x)
 splitInitLast (x : xs) = Just (x : a, b)
-    where Just (a, b) = splitInitLast xs
+    where
+        Just (a, b) = splitInitLast xs
 
 {-|
     Enable the Fira Mono font in \(\LaTeX\) glyphs. Use with functions
     starting with @latexCfg@.
 -}
 firaMonoCfg :: TexConfig
-firaMonoCfg = TexConfig LaTeX
+firaMonoCfg = TexConfig
+    LaTeX
     [ "\\usepackage{FiraMono}"
     , "\\renewcommand*\\familydefault{\\ttdefault}"
     , "\\usepackage[T1]{fontenc}"
@@ -125,8 +133,7 @@ withDefaultLineStrokeFill = withStrokeWidth 0.05 . withFillOpacity 0
     Create a pair of axes spanning the screen.
 -}
 mkBackgroundAxes :: SVG
-mkBackgroundAxes =
-    gridLayout
+mkBackgroundAxes = gridLayout
     . replicate 2
     . replicate 2
     . withStrokeWidth 0.03
@@ -137,8 +144,7 @@ mkBackgroundAxes =
     Create a unit square grid spanning the screen.
 -}
 mkBackgroundGrid :: SVG
-mkBackgroundGrid =
-    gridLayout
+mkBackgroundGrid = gridLayout
     . replicate (round (screenHeight :: Double))
     . replicate (round (screenWidth :: Double))
     . withStrokeWidth 0.01
@@ -155,9 +161,9 @@ mkBackgroundGrid =
 -}
 distribute1D :: [Double] -> [Double]
 distribute1D sizes = scanl1 (+) $ zipWith avg sizes ((-s) : sizes)
-  where
-    s = sum sizes
-    avg a b = (a + b) / 2
+    where
+        s = sum sizes
+        avg a b = (a + b) / 2
 
 {-|
     Horizontally distribute a list of SVGs relative to the bounding box that
@@ -165,21 +171,20 @@ distribute1D sizes = scanl1 (+) $ zipWith avg sizes ((-s) : sizes)
 -}
 distributeWithSpacingX :: Double -> [SVG] -> [SVG]
 distributeWithSpacingX spacing svgs = svgs'
-  where
-    groupCenterX =
-        let (minX, _, w, _) = boundingBox $ mkGroup svgs
-        in minX + w / 2
-    widths = svgWidth <$> svgs
-    translations = unintersperse . distribute1D . intersperse spacing $ widths
-    svgs' = zipWith
-        (\dx svg -> translate (groupCenterX + dx) 0 . centerX $ svg)
-        translations
-        svgs
-
-    unintersperse xs = case xs of
-        [] -> []
-        [x] -> [x]
-        x : _ : rest -> x : unintersperse rest
+    where
+        groupCenterX =
+            let (minX, _, w, _) = boundingBox $ mkGroup svgs in minX + w / 2
+        widths = svgWidth <$> svgs
+        translations =
+            unintersperse . distribute1D . intersperse spacing $ widths
+        svgs' = zipWith
+            (\dx svg -> translate (groupCenterX + dx) 0 . centerX $ svg)
+            translations
+            svgs
+        unintersperse xs = case xs of
+            [] -> []
+            [x] -> [x]
+            x : _ : rest -> x : unintersperse rest
 
 {-|
     Horizontally distribute a list of SVGs relative to the bounding box that
@@ -194,21 +199,20 @@ distributeX = distributeWithSpacingX 0
 -}
 distributeWithSpacingY :: Double -> [SVG] -> [SVG]
 distributeWithSpacingY spacing svgs = svgs'
-  where
-    groupCenterY =
-        let (_, minY, _, h) = boundingBox $ mkGroup svgs
-        in minY + h / 2
-    heights = svgHeight <$> svgs
-    translations = unintersperse . distribute1D . intersperse spacing $ heights
-    svgs' = zipWith
-        (\dy svg -> translate 0 (groupCenterY + dy) . centerY $ svg)
-        translations
-        svgs
-
-    unintersperse xs = case xs of
-        [] -> []
-        [x] -> [x]
-        x : _ : rest -> x : unintersperse rest
+    where
+        groupCenterY =
+            let (_, minY, _, h) = boundingBox $ mkGroup svgs in minY + h / 2
+        heights = svgHeight <$> svgs
+        translations =
+            unintersperse . distribute1D . intersperse spacing $ heights
+        svgs' = zipWith
+            (\dy svg -> translate 0 (groupCenterY + dy) . centerY $ svg)
+            translations
+            svgs
+        unintersperse xs = case xs of
+            [] -> []
+            [x] -> [x]
+            x : _ : rest -> x : unintersperse rest
 
 {-|
     Vertically distribute a list of SVGs relative to the bounding box that
@@ -226,8 +230,7 @@ distributeY = distributeWithSpacingY 0
     @scale 0.5@) be given as the second argument.
 -}
 latexCfgCenteredYWith :: TexConfig -> (SVG -> SVG) -> Text -> SVG
-latexCfgCenteredYWith config transformation =
-    mkGroup
+latexCfgCenteredYWith config transformation = mkGroup
     . drop 4
     . removeGroups
     . centerY
@@ -275,7 +278,7 @@ forkAllWithDifferentLags scenes = case splitInitLast scenes of
 -}
 forkAllWithLag :: Double -> [Scene s a] -> Scene s ()
 forkAllWithLag _ [] = pure ()
-forkAllWithLag time scenes = forkAllWithDifferentLags $ (time,) <$> scenes
+forkAllWithLag time scenes = forkAllWithDifferentLags $ (time, ) <$> scenes
 
 {-|
     'fork' each given scene except the last. An empty scene is played at the
@@ -294,17 +297,14 @@ forkAll = forkAllWithLag 0
     Simultaneously set the stroke and fill color.
 -}
 withColor :: String -> SVG -> SVG
-withColor color =
-    withStrokeColor color
-    . withFillColor color
+withColor color = withStrokeColor color . withFillColor color
 
 {-|
     Simultaneously set the stroke and fill color.
 -}
 withColorPixel :: PixelRGBA8 -> SVG -> SVG
 withColorPixel colorPixel =
-    withStrokeColorPixel colorPixel
-    . withFillColorPixel colorPixel
+    withStrokeColorPixel colorPixel . withFillColorPixel colorPixel
 
 {-|
     Gradually translate an 'Reanimate.Scene.Object' toward a new position by
@@ -317,6 +317,16 @@ oMoveTo :: (Double, Double) -> Double -> ObjectData a -> ObjectData a
 oMoveTo (x, y) t = oTranslate %~ lerp t (V2 x y)
 
 {-|
+    Gradually translate an 'Reanimate.Scene.Object' a certain amount by
+    modifying its internal 'ObjectData'. Best used with 'oTween'.
+
+    For example, @oTween obj 1 $ oMoveBy (3, 4)@ gradually moves @obj@ by 3
+    units rightward and 4 units upward over 1 second.
+-}
+oMoveBy :: (Double, Double) -> Double -> ObjectData a -> ObjectData a
+oMoveBy (x, y) t = oTranslate %~ \curr -> lerp t (V2 x y + curr) curr
+
+{-|
     Modify the context of an 'Reanimate.Scene.Object' over a set duration by
     applying a tweening function to it.
 
@@ -324,7 +334,8 @@ oMoveTo (x, y) t = oTranslate %~ lerp t (V2 x y)
     @oTweenContext obj 1 (withTweenedStrokeColor "purple" "blue")@
     changes the SVG stroke color of @obj@ from purple to blue over 1 second.
 -}
-oTweenContext :: Object s a -> Duration -> (Double -> SVG -> SVG) -> Scene s ()
+oTweenContext
+    :: Object s a -> Duration -> (Double -> SVG -> SVG) -> Scene s ()
 oTweenContext obj dur f = oTween obj dur $ \t -> oContext %~ (f t .)
 
 {-|
@@ -334,7 +345,8 @@ oTweenContext obj dur f = oTween obj dur $ \t -> oContext %~ (f t .)
 -}
 mkColorPixel :: String -> PixelRGBA8
 mkColorPixel color = pixel
-    where ColorRef pixel = mkColor color
+    where
+        ColorRef pixel = mkColor color
 
 {-|
     Interpolate between two SVG color names using the CIELAB color space.
@@ -366,7 +378,8 @@ withTweenedColor fromColor toColor =
 {-|
     Tween (\"fade\") the stroke color of an SVG between two RGBA values.
 -}
-withTweenedStrokeColorPixel :: PixelRGBA8 -> PixelRGBA8 -> Double -> SVG -> SVG
+withTweenedStrokeColorPixel
+    :: PixelRGBA8 -> PixelRGBA8 -> Double -> SVG -> SVG
 withTweenedStrokeColorPixel fromPixel toPixel t =
     withStrokeColorPixel $ interpolateRGBA8 labComponents fromPixel toPixel t
 
@@ -377,8 +390,9 @@ withTweenedStrokeColorPixel fromPixel toPixel t =
     stroke color of @svg@ to be a quarter of the way between magenta and green.
 -}
 withTweenedStrokeColor :: String -> String -> Double -> SVG -> SVG
-withTweenedStrokeColor fromColor toColor =
-    withTweenedStrokeColorPixel (mkColorPixel fromColor) (mkColorPixel toColor)
+withTweenedStrokeColor fromColor toColor = withTweenedStrokeColorPixel
+    (mkColorPixel fromColor)
+    (mkColorPixel toColor)
 
 {-|
     Tween (\"fade\") the fill color of an SVG between two RGBA values.
@@ -396,3 +410,36 @@ withTweenedFillColorPixel fromPixel toPixel t =
 withTweenedFillColor :: String -> String -> Double -> SVG -> SVG
 withTweenedFillColor fromColor toColor =
     withTweenedFillColorPixel (mkColorPixel fromColor) (mkColorPixel toColor)
+
+{-|
+    Similar to `cubic-bezier` implemented in CSS.
+-}
+cssCubicBezierS :: (Double, Double, Double, Double) -> Signal
+cssCubicBezierS (x1, y1, x2, y2) s = maybe s snd closestXY
+    where
+        ts = takeWhile (<= 1) $ iterate (+ 1 / 1200) 0
+        xs = fxt <$> ts
+        ys = fyt <$> ts
+        fxt t = 3 * t * (1 - t) ^ 2 * x1' + 3 * t ^ 2 * (1 - t) * x2' + t ^ 3
+        fyt t = 3 * t * (1 - t) ^ 2 * y1 + 3 * t ^ 2 * (1 - t) * y2 + t ^ 3
+        closestXY = find ((>= s) . fst) $ zip xs ys
+        x1'
+            | x1 < 0 = 0
+            | x1 > 1 = 1
+            | otherwise = x1
+        x2'
+            | x2 < 0 = 0
+            | x2 > 1 = 1
+            | otherwise = x2
+
+{-|
+    Snap-out signal.
+-}
+snapOutS :: Signal
+snapOutS = cssCubicBezierS (0.060, 0.975, 0.195, 0.985)
+
+{-|
+    Snap-in signal.
+-}
+snapInS :: Signal
+snapInS = reverseS . snapOutS . reverseS
