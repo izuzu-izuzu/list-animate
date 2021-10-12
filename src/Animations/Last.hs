@@ -2,9 +2,9 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Animations.Init (main, initAnimation) where
+module Animations.Last (main, lastAnimation) where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (%~))
 import Data.Foldable (traverse_)
 import Data.Text (pack)
 import Linear (V2(V2))
@@ -17,7 +17,7 @@ import Utilities.Main
 import Utilities.List
 
 main :: IO ()
-main = reanimate initAnimation
+main = reanimate lastAnimation
 
 env :: Animation -> Animation
 env = docEnv
@@ -25,8 +25,8 @@ env = docEnv
     -- . addStatic mkBackgroundGrid
     -- . addStatic mkBackgroundAxes
 
-initAnimation :: Animation
-initAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
+lastAnimation :: Animation
+lastAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     let
         xsColor = "red"
         resultColor = "magenta"
@@ -44,12 +44,12 @@ initAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
             withDefaultBoldTextStrokeFill
             . centerX
             . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "init :: [a] -> [a]"
+            $ "last :: [a] -> a"
         funcDefSvg =
             withDefaultBoldTextStrokeFill
             . centerX
             . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "init xs"
+            $ "last xs"
         xsBoxesSvgs = customListBoxes xsBoxWidths xsColor
         xsLabelsSvgs = customListLabels xsBoxWidths xsColor xsLabelTexts
 
@@ -160,16 +160,17 @@ initAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                 withSubglyphs [0 .. 3] (withTweenedColor "black" resultColor t)
                 . withSubglyphs [4, 5]  (withTweenedColor xsColor resultColor t)
             , forkAll $ fmap
-                (\x -> oTween x 1 $ \t -> oContext .~
-                    withTweenedColor xsColor resultColor t
-                )
-                (init xsSplitBoxes ++ init xsSplitLabels)
-            , forkAll $ fmap
-                (\x -> oTween x 1 $ oMoveBy (1, 0))
-                (init xsSplitBoxes ++ init xsSplitLabels)
-            , forkAll $ fmap
                 (`oHideWith` setDuration 0.5 . oFadeOut)
+                (init xsSplitBoxes ++ init xsSplitLabels)
+            , forkAll $ fmap
+                (\x -> oTween x 1 $ oMoveBy (-4.5, 0))
                 [xn1Box, xn1Label]
+            , oTween xn1Label 1 $ \t -> oContext .~
+                aroundCenter (scale $ 1 + 0.5 * t)
+                . withTweenedColor xsColor resultColor t
+            , oTween xn1Box 1 $ \t -> oContext .~
+                withSubglyphs [0 ..] (withTweenedColor xsColor resultColor t)
+            , oHideWith xn1Box $ setDuration 1.5 . reverseA . oDraw
             ]
 
     wait 1
