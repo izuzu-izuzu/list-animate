@@ -32,40 +32,41 @@ module Utilities.Main
     , distributeY
     , distributeWithSpacingX
     , distributeWithSpacingY
-      -- * Scenes
+      -- * Animations
+      -- ** Easing functions
+    , cssCubicBezierS
+    , snapInS
+    , snapOutS
+      -- ** Scenes
     , forkLag
     , forkAll
     , forkAllWithLag
     , forkAllWithDifferentLags
-      -- * Objects
+      -- *** Objects
     , oMoveTo
     , oMoveBy
     , oTweenContext
+      -- ** Effects
+    , mkAnimationE
+    , animateE
+    , composeE
       -- * Other
-    , snapInS
-    , snapOutS
-    , cssCubicBezierS
     , mkColorPixel
     , mkBackgroundAxes
     , mkBackgroundGrid
     ) where
 
 import Codec.Picture (PixelRGBA8)
-
 import Control.Lens ((%~))
-
-import Data.List (intersperse)
+import Data.List (find, intersperse)
 import Data.Text (Text)
-
 import Graphics.SvgTree (Texture(ColorRef))
-
 import Linear (V2(V2), lerp)
 
 import Reanimate
 import Reanimate.ColorComponents (interpolateRGBA8, labComponents)
 import Reanimate.LaTeX (TexConfig(TexConfig), TexEngine(LaTeX), latexCfg)
 import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween)
-import Data.List (find)
 
 infixl 1 -<
 
@@ -349,16 +350,6 @@ mkColorPixel color = pixel
         ColorRef pixel = mkColor color
 
 {-|
-    Interpolate between two SVG color names using the CIELAB color space.
--}
-interpolateAsPixel :: String -> String -> Double -> PixelRGBA8
-interpolateAsPixel fromColor toColor =
-    interpolateRGBA8 labComponents rgba1 rgba2
-    where
-        (ColorRef rgba1) = mkColor fromColor
-        (ColorRef rgba2) = mkColor toColor
-
-{-|
     Tween (\"fade\") the color of an SVG between two RGBA values.
 -}
 withTweenedColorPixel :: PixelRGBA8 -> PixelRGBA8 -> Double -> SVG -> SVG
@@ -412,7 +403,7 @@ withTweenedFillColor fromColor toColor =
     withTweenedFillColorPixel (mkColorPixel fromColor) (mkColorPixel toColor)
 
 {-|
-    Similar to `cubic-bezier` implemented in CSS.
+    Similar to @cubic-bezier@ implemented in CSS.
 -}
 cssCubicBezierS :: (Double, Double, Double, Double) -> Signal
 cssCubicBezierS (x1, y1, x2, y2) s = maybe s snd closestXY
@@ -420,8 +411,14 @@ cssCubicBezierS (x1, y1, x2, y2) s = maybe s snd closestXY
         ts = takeWhile (<= 1) $ iterate (+ 1 / 1200) 0
         xs = fxt <$> ts
         ys = fyt <$> ts
-        fxt t = 3 * t * (1 - t) ^ 2 * x1' + 3 * t ^ 2 * (1 - t) * x2' + t ^ 3
-        fyt t = 3 * t * (1 - t) ^ 2 * y1 + 3 * t ^ 2 * (1 - t) * y2 + t ^ 3
+        fxt t =
+            3 * x1' * t * (1 - t) ^ (2 :: Int)
+            + 3 * x2' * t ^ (2 :: Int) * (1 - t)
+            + t ^ (3 :: Int)
+        fyt t =
+            3 * y1 * t * (1 - t) ^ (2 :: Int)
+            + 3 * y2 * t ^ (2 :: Int) * (1 - t)
+            + t ^ (3 :: Int)
         closestXY = find ((>= s) . fst) $ zip xs ys
         x1'
             | x1 < 0 = 0
@@ -443,3 +440,22 @@ snapOutS = cssCubicBezierS (0.060, 0.975, 0.195, 0.985)
 -}
 snapInS :: Signal
 snapInS = reverseS . snapOutS . reverseS
+
+{-|
+    Compose multiple 'Effect's into a single 'Effect'.
+-}
+composeE :: [Effect] -> Effect
+composeE [] _ _ = id
+composeE effects d t = foldr1 (.) $ fmap (\e -> e d t) effects
+
+{-|
+    Animate an 'Effect' applied to an 'SVG' over a set duration.
+-}
+mkAnimationE :: Duration -> Effect -> SVG -> Animation
+mkAnimationE d effect svg = mkAnimation d $ \t -> effect 1 t svg
+
+{-|
+    Animate an 'Effect' applied to an 'SVG' over a duration of 1.
+-}
+animateE :: Effect -> SVG -> Animation
+animateE = mkAnimationE 1
