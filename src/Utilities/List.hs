@@ -115,7 +115,7 @@ list2BoxWidths :: [Double]
 list2BoxWidths = [1, 1, 1]
 
 list2Offsets :: [SVG -> SVG]
-list2Offsets = (\dx -> translate dx 0) <$> distribute1D list2BoxWidths
+list2Offsets = (`translate` 0) <$> distribute1D list2BoxWidths
 
 {-|
     Create boxes with the given color to represent a list of the form
@@ -125,7 +125,7 @@ list2Boxes :: String -> [SVG]
 list2Boxes color =
     fmap (withColor color . withDefaultLineStrokeFill)
     . zipWith ($) list2Offsets
-    . fmap (\w -> mkRect w 1)
+    . fmap (`mkRect` 1)
     $ list2BoxWidths
 
 {-|
@@ -150,7 +150,7 @@ list3BoxWidths :: [Double]
 list3BoxWidths = [1, 1, 2, 1]
 
 list3Offsets :: [SVG -> SVG]
-list3Offsets = (\dx -> translate dx 0) <$> distribute1D list3BoxWidths
+list3Offsets = (`translate` 0) <$> distribute1D list3BoxWidths
 
 {-|
     Create boxes with the given color to represent a list of the form
@@ -160,7 +160,7 @@ list3Boxes :: String -> [SVG]
 list3Boxes color =
     fmap (withColor color . withDefaultLineStrokeFill)
     . zipWith ($) list3Offsets
-    . fmap (\w -> mkRect w 1)
+    . fmap (`mkRect` 1)
     $ list3BoxWidths
 
 {-|
@@ -187,7 +187,7 @@ list4BoxWidths :: [Double]
 list4BoxWidths = [1, 1, 3, 1, 1]
 
 list4Offsets :: [SVG -> SVG]
-list4Offsets = (\dx -> translate dx 0) <$> distribute1D list4BoxWidths
+list4Offsets = (`translate` 0) <$> distribute1D list4BoxWidths
 
 {-|
     Create boxes with the given color to represent a list of the form
@@ -197,7 +197,7 @@ list4Boxes :: String -> [SVG]
 list4Boxes color =
     fmap (withColor color . withDefaultLineStrokeFill)
     . zipWith ($) list4Offsets
-    . fmap (\w -> mkRect w 1)
+    . fmap (`mkRect` 1)
     $ list4BoxWidths
 
 {-|
@@ -225,7 +225,7 @@ list5BoxWidths :: [Double]
 list5BoxWidths = [1, 1, 1, 2]
 
 list5Offsets :: [SVG -> SVG]
-list5Offsets = (\dx -> translate dx 0) <$> distribute1D list5BoxWidths
+list5Offsets = (`translate` 0) <$> distribute1D list5BoxWidths
 
 {-|
     Create boxes with the given color to represent a list of the form
@@ -235,7 +235,7 @@ list5Boxes :: String -> [SVG]
 list5Boxes color =
     fmap (withColor color . withDefaultLineStrokeFill)
     . zipWith ($) list5Offsets
-    . fmap (\w -> mkRect w 1)
+    . fmap (`mkRect` 1)
     $ list5BoxWidths
 
 {-|
@@ -265,10 +265,10 @@ customListBoxes :: [Double] -> String -> [SVG]
 customListBoxes widths color =
     fmap (withColor color . withDefaultLineStrokeFill)
     . zipWith ($) offsets
-    . fmap (\w -> mkRect w 1)
+    . fmap (`mkRect` 1)
     $ widths
     where
-        offsets = (\dx -> translate dx 0) <$> distribute1D widths
+        offsets = (`translate` 0) <$> distribute1D widths
 
 {-|
     Create custom text labels from the given box widths, color and text.
@@ -279,4 +279,4 @@ customListLabels widths color =
     . zipWith ($) offsets
     . fmap (centerX . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale)
     where
-        offsets = (\dx -> translate dx 0) <$> distribute1D widths
+        offsets = (`translate` 0) <$> distribute1D widths

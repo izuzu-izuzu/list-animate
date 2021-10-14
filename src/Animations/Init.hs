@@ -7,24 +7,41 @@ module Animations.Init (main, initAnimation) where
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
 import Data.Text (pack)
-import Linear (V2(V2))
+import Linear (V2 (V2))
 
 import Reanimate
 import Reanimate.Builtin.Documentation (docEnv)
 import Reanimate.Scene
+    ( oContext
+    , oDraw
+    , oEasing
+    , oFadeOut
+    , oHide
+    , oHideWith
+    , oModify
+    , oNew
+    , oShow
+    , oShowWith
+    , oTranslate
+    , oTween
+    )
 
-import Utilities.Main
 import Utilities.List
+import Utilities.Main
 
 main :: IO ()
 main = reanimate initAnimation
 
 env :: Animation -> Animation
-env = docEnv
+env =
+    docEnv
     . addStatic (mkBackground "floralwhite")
     -- . addStatic mkBackgroundGrid
     -- . addStatic mkBackgroundAxes
 
+{-|
+    Animation for the 'Data.List.init' function.
+-}
 initAnimation :: Animation
 initAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     let

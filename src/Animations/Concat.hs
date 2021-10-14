@@ -2,9 +2,9 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Animations.Concat (concatAnimation) where
+module Animations.Concat (main, concatAnimation) where
 
-import Control.Lens ((%~), (.~))
+import Control.Lens ((.~))
 import Data.Foldable (traverse_)
 
 import Reanimate
@@ -13,18 +13,14 @@ import Reanimate.Scene
     ( oContext
     , oDraw
     , oEasing
-    , oFadeOut
-    , oHide
-    , oHideWith
     , oModify
     , oNew
-    , oShow
     , oShowWith
     , oTween
     )
 
-import Utilities.Main
 import Utilities.List
+import Utilities.Main
 
 main :: IO ()
 main = reanimate concatAnimation
@@ -32,28 +28,13 @@ main = reanimate concatAnimation
 env :: Animation -> Animation
 env =
     docEnv
-    . addStatic (mkBackground $ "floralwhite")
-    . addStatic mkBackgroundGrid
-    . addStatic mkBackgroundAxes
+    . addStatic (mkBackground "floralwhite")
+    -- . addStatic mkBackgroundGrid
+    -- . addStatic mkBackgroundAxes
 
 {-|
-    Animation for the '(++)' function.
+    Animation for the '(Data.List.++)' function.
 -}
-concatAnimation2 :: Animation
-concatAnimation2 = env . applyE (overEnding 1 fadeOutE) $ scene $ do
-    xsColor <- newVar $ mkColor "red"
-    ysColor <- newVar $ mkColor "blue"
-    concatColor <- newVar $ mkColor "magenta"
-    pure ()
-    {-
-    let
-        typeSigSVG =
-            withDefaultBoldTextStrokeFill
-            . centerX
-            . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-    -}
-        
-
 concatAnimation :: Animation
 concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     let
@@ -97,8 +78,8 @@ concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
             ]
 
         moveXsBottomLeft = forkAll
-            [ oTween xsBoxes 1 $ oMoveTo ((-4.5), (-1.5))
-            , oTween xsLabels 1 $ oMoveTo ((-4.5), (-1.5))
+            [ oTween xsBoxes 1 $ oMoveTo (-4.5, -1.5)
+            , oTween xsLabels 1 $ oMoveTo (-4.5, -1.5)
             ]
 
         showYs = forkAllWithDifferentLags $ zip
@@ -110,11 +91,11 @@ concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
             ]
 
         moveYsBottomRight = forkAll
-            [ oTween ysBoxes 1 $ oMoveTo (3.5, (-1.5))
-            , oTween ysLabels 1 $ oMoveTo (3.5, (-1.5))
+            [ oTween ysBoxes 1 $ oMoveTo (3.5, -1.5)
+            , oTween ysLabels 1 $ oMoveTo (3.5, -1.5)
             ]
 
-        moveFuncDefDown = oTween funcDef 1 $ oMoveTo (0, (-1))
+        moveFuncDefDown = oTween funcDef 1 $ oMoveTo (0, -1)
 
         snapXsYs = do
             traverse_
@@ -122,17 +103,18 @@ concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                     oModify x $ oEasing .~ powerS 5)
                 [xsBoxes, xsLabels, ysBoxes, ysLabels]
             forkAll
-                [ oTween xsBoxes 0.5 $ oMoveTo ((-3.5), (-1.5))
-                , oTween xsLabels 0.5 $ oMoveTo ((-3.5), (-1.5))
-                , oTween ysBoxes 0.5 $ oMoveTo ((2.5), (-1.5))
-                , oTween ysLabels 0.5 $ oMoveTo ((2.5), (-1.5))
+                [ oTween xsBoxes 0.5 $ oMoveTo (-3.5, -1.5)
+                , oTween xsLabels 0.5 $ oMoveTo (-3.5, -1.5)
+                , oTween ysBoxes 0.5 $ oMoveTo (2.5, -1.5)
+                , oTween ysLabels 0.5 $ oMoveTo (2.5, -1.5)
                 ]
             traverse_
                 (\x -> oModify x $ oEasing .~ curveS 2)
                 [xsBoxes, xsLabels, ysBoxes, ysLabels]
 
         highlightCombinedXsYs = traverse_
-            (\x -> oModify x $ oContext .~ withColor combinedColor)
+            (\x -> oModify x $ oContext .~
+                withSubglyphs [0 ..] (withColor combinedColor))
             [funcDef, xsBoxes, xsLabels, ysBoxes, ysLabels]
 
     wait 1
@@ -147,7 +129,7 @@ concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
 
     showYs
 
-    fork $ moveYsBottomRight
+    fork moveYsBottomRight
     moveFuncDefDown
 
     wait 0.5

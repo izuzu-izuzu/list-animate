@@ -27,6 +27,9 @@ module Utilities.Main
     , withTweenedStrokeColor
     , withTweenedFillColor
       -- ** Transformations
+    , centerGroup
+    , centerGroupX
+    , centerGroupY
     , distribute1D
     , distributeX
     , distributeY
@@ -60,12 +63,12 @@ import Codec.Picture (PixelRGBA8)
 import Control.Lens ((%~))
 import Data.List (find, intersperse)
 import Data.Text (Text)
-import Graphics.SvgTree (Texture(ColorRef))
-import Linear (V2(V2), lerp)
+import Graphics.SvgTree (Texture (ColorRef))
+import Linear (V2 (V2), lerp)
 
 import Reanimate
 import Reanimate.ColorComponents (interpolateRGBA8, labComponents)
-import Reanimate.LaTeX (TexConfig(TexConfig), TexEngine(LaTeX), latexCfg)
+import Reanimate.LaTeX (TexConfig (TexConfig), TexEngine (LaTeX), latexCfg)
 import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween)
 
 infixl 1 -<
@@ -395,8 +398,8 @@ withTweenedFillColorPixel fromPixel toPixel t =
 {-|
     Tween (\"fade\") the fill color of an SVG between two color names.
 
-    For example, @withTweenedFillColor "magenta" "green" 0.25 svg@ sets the
-    fill color of @svg@ to be a quarter of the way between magenta and green.
+    For example, @withTweenedFillColor "magenta" "green" 0.25 svg@ sets the fill
+    color of @svg@ to be a quarter of the way between magenta and green.
 -}
 withTweenedFillColor :: String -> String -> Double -> SVG -> SVG
 withTweenedFillColor fromColor toColor =
@@ -459,3 +462,34 @@ mkAnimationE d effect svg = mkAnimation d $ \t -> effect 1 t svg
 -}
 animateE :: Effect -> SVG -> Animation
 animateE = mkAnimationE 1
+
+{-|
+    Translate the given list of 'SVG's such that they are horizontally centered
+    as a whole.
+-}
+centerGroupX :: [SVG] -> [SVG]
+centerGroupX svgs = fmap (translate (-midX) 0) svgs
+    where
+        (minX, _, w, _) = boundingBox $ mkGroup svgs
+        midX = minX + w/2
+
+{-|
+    Translate the given list of 'SVG's such that they are vertically centered as
+    a whole.
+-}
+centerGroupY :: [SVG] -> [SVG]
+centerGroupY svgs = fmap (translate 0 (-midY)) svgs
+    where
+        (_, minY, _, h) = boundingBox $ mkGroup svgs
+        midY = minY + h/2
+
+{-|
+    Translate the given list of 'SVG's such that they are both horizontally and
+    vertically centered as a whole.
+-}
+centerGroup :: [SVG] -> [SVG]
+centerGroup svgs = fmap (translate (-midX) (-midY)) svgs
+    where
+        (minX, minY, w, h) = boundingBox $ mkGroup svgs
+        midX = minX + w/2
+        midY = minY + h/2

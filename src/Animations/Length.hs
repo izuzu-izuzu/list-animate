@@ -7,24 +7,42 @@ module Animations.Length (main, lengthAnimation) where
 import Control.Lens ((.~), (%~))
 import Data.Foldable (traverse_)
 import Data.Text (pack, Text)
-import Linear (V2(V2))
+import Linear (V2 (V2))
 
 import Reanimate
 import Reanimate.Builtin.Documentation (docEnv)
 import Reanimate.Scene
+    ( oContext
+    , oDraw
+    , oEasing
+    , oFadeIn
+    , oFadeOut
+    , oHide
+    , oHideWith
+    , oModify
+    , oNew
+    , oShow
+    , oShowWith
+    , oTranslate
+    , oTween
+    )
 
-import Utilities.Main
 import Utilities.List
+import Utilities.Main
 
 main :: IO ()
 main = reanimate lengthAnimation
 
 env :: Animation -> Animation
-env = docEnv
+env =
+    docEnv
     . addStatic (mkBackground "floralwhite")
     -- . addStatic mkBackgroundGrid
     -- . addStatic mkBackgroundAxes
 
+{-|
+    Animation for the 'Data.List.length' function.
+-}
 lengthAnimation :: Animation
 lengthAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     let
