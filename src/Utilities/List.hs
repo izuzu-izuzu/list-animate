@@ -51,6 +51,8 @@ module Utilities.List
     -- * Building custom lists
     , customListBoxes
     , customListLabels
+    , customListBoxesWith
+    , customListLabelsWith
     )
 where
 
@@ -262,21 +264,43 @@ list5Labels color name =
     Create custom list boxes from the given box widths and color.
 -}
 customListBoxes :: [Double] -> String -> [SVG]
-customListBoxes widths color =
-    fmap (withColor color . withDefaultLineStrokeFill)
-    . zipWith ($) offsets
-    . fmap (`mkRect` 1)
-    $ widths
-    where
-        offsets = (`translate` 0) <$> distribute1D widths
+customListBoxes widths color = customListBoxesWith
+    widths
+    (withColor color . withDefaultLineStrokeFill)
 
 {-|
     Create custom text labels from the given box widths, color and text.
 -}
 customListLabels :: [Double] -> String -> [Text] -> [SVG]
-customListLabels widths color =
-    fmap (withColor color . withDefaultTextStrokeFill)
-    . zipWith ($) offsets
-    . fmap (centerX . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale)
+customListLabels widths color = customListLabelsWith
+    widths
+    ( withColor color
+    . withDefaultTextStrokeFill
+    . withDefaultTextScale
+    . centerX
+    )
+
+{-|
+    Create custom list boxes from the given box widths and SVG transformation.
+    The given transformation is applied to each box before the boxes are laid
+    out next to each other.
+-}
+customListBoxesWith :: [Double] -> (SVG -> SVG) -> [SVG]
+customListBoxesWith widths transformation =
+    zipWith ($) offsets
+    . fmap (transformation . (`mkRect` 1))
+    $ widths
+    where
+        offsets = (`translate` 0) <$> distribute1D widths
+
+{-|
+    Create custom text labels from the given box widths, SVG transformation and
+    text values. The SVG transformation is applied to each text label before the
+    labels are laid out to fit the given box widths.
+-}
+customListLabelsWith :: [Double] -> (SVG -> SVG) -> [Text] -> [SVG]
+customListLabelsWith widths transformation =
+    zipWith ($) offsets
+    . fmap (latexCfgCenteredYWith firaMonoCfg transformation)
     where
         offsets = (`translate` 0) <$> distribute1D widths
