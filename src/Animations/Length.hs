@@ -47,7 +47,7 @@ lengthAnimation :: Animation
 lengthAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     let
         xsColor = "red"
-        lengthColor = "green"
+        lengthColor = "dodgerblue"
         resultColor = "magenta"
         xsBoxWidths = [1, 1, 1, 3, 1, 1, 1]
         xsLabelTexts =
