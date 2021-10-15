@@ -235,12 +235,13 @@ distributeY = distributeWithSpacingY 0
 -}
 latexCfgCenteredYWith :: TexConfig -> (SVG -> SVG) -> Text -> SVG
 latexCfgCenteredYWith config transformation = mkGroup
+    . (\x -> take (length x - 4) x)
     . drop 4
     . removeGroups
     . centerY
     . transformation
     . latexCfg config
-    . ("$\\biggl \\lvert$" <>)
+    . (\x -> "$\\biggl \\lvert$" <> x <> "$\\biggr \\rvert$")
 
 {-|
     'fork' a scene and add a time delay.
