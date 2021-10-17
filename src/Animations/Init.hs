@@ -178,7 +178,7 @@ initAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                 . withSubglyphs [4, 5]  (withTweenedColor xsColor resultColor t)
             , forkAll $ fmap
                 (\x -> oTween x 1 $ \t -> oContext .~
-                    withTweenedColor xsColor resultColor t
+                    withSubglyphs [0 ..] (withTweenedColor xsColor resultColor t)
                 )
                 (init xsSplitBoxes ++ init xsSplitLabels)
             , forkAll $ fmap

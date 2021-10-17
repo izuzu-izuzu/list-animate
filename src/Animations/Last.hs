@@ -184,7 +184,7 @@ lastAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                 [xn1Box, xn1Label]
             , oTween xn1Label 1 $ \t -> oContext .~
                 aroundCenter (scale $ 1 + 0.5 * t)
-                . withTweenedColor xsColor resultColor t
+                . withSubglyphs [0 ..] (withTweenedColor xsColor resultColor t)
             , oTween xn1Box 1 $ \t -> oContext .~
                 withSubglyphs [0 ..] (withTweenedColor xsColor resultColor t)
             , oHideWith xn1Box $ setDuration 1.5 . reverseA . oDraw
