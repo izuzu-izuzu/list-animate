@@ -15,6 +15,7 @@ module Utilities.Main
     , firaMonoCfg
       -- ** Invoking LaTeX
     , latexCfgCenteredYWith
+    , latexCfgChunksCenteredYWith
       -- * SVG
       -- ** Attributes
     , withDefaultTextScale
@@ -68,7 +69,12 @@ import Linear (V2 (V2), lerp)
 
 import Reanimate
 import Reanimate.ColorComponents (interpolateRGBA8, labComponents)
-import Reanimate.LaTeX (TexConfig (TexConfig), TexEngine (LaTeX), latexCfg)
+import Reanimate.LaTeX
+    ( TexConfig (TexConfig)
+    , TexEngine (LaTeX)
+    , latexCfg
+    , latexCfgChunks
+    )
 import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween)
 
 infixl 1 -<
@@ -241,7 +247,26 @@ latexCfgCenteredYWith config transformation = mkGroup
     . centerY
     . transformation
     . latexCfg config
-    . (\x -> "$\\biggl \\lvert$" <> x <> "$\\biggr \\rvert$")
+    . (<> "\\makebox[0em]{$\\biggr\\rvert$}")
+    . ("\\makebox[0em]{$\\biggl\\lvert$}" <>)
+
+{-|
+    Similar to 'latexCfgChunks', but the resulting text glyphs are also
+    vertically centered using their common baseline, so that different glyphs
+    containing characters like \"y\" and \"^\" are properly aligned.
+
+    For now, baseline centering requires that any SVG transformation (such as
+    @scale 0.5@) be given as the second argument.
+-}
+latexCfgChunksCenteredYWith :: TexConfig -> (SVG -> SVG) -> [Text] -> [SVG]
+latexCfgChunksCenteredYWith config transformation =
+    init
+    . tail
+    . centerGroupY
+    . fmap transformation
+    . latexCfgChunks config
+    . (<> ["\\makebox[0em]{$\\biggr\\rvert$}"])
+    . (["\\makebox[0em]{$\\biggl\\lvert$}"] <>)
 
 {-|
     'fork' a scene and add a time delay.
