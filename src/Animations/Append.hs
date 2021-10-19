@@ -2,7 +2,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Animations.Concat (main, concatAnimation) where
+module Animations.Append (main, appendAnimation) where
 
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
@@ -26,7 +26,7 @@ import Utilities.List
 import Utilities.Main
 
 main :: IO ()
-main = reanimate concatAnimation
+main = reanimate appendAnimation
 
 env :: Animation -> Animation
 env =
@@ -77,8 +77,8 @@ ysLabelsSvgs = list4Labels ysColor "y" "n"
 {-|
     Animation for the '(Data.List.++)' function.
 -}
-concatAnimation :: Animation
-concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
+appendAnimation :: Animation
+appendAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     typeSig <- oNew typeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
     
