@@ -6,16 +6,19 @@ module Animations.Concat (main, concatAnimation) where
 
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
+import Linear (V2 (V2))
 
 import Reanimate
 import Reanimate.Builtin.Documentation (docEnv)
 import Reanimate.Scene
-    ( oContext
-    , oDraw
+    ( oDraw
     , oEasing
+    , oHide
     , oModify
     , oNew
+    , oShow
     , oShowWith
+    , oTranslate
     , oTween
     )
 
@@ -28,114 +31,143 @@ main = reanimate concatAnimation
 env :: Animation -> Animation
 env =
     docEnv
-    . addStatic (mkBackground "floralwhite")
-    -- . addStatic mkBackgroundGrid
-    -- . addStatic mkBackgroundAxes
+    . addStatic (mkBackground bgColor)
+    . addStatic mkBackgroundGrid
+    . addStatic mkBackgroundAxes
+
+fgColor :: String
+fgColor = "black"
+
+bgColor :: String
+bgColor = "floralwhite"
+
+xsColor :: String
+xsColor = "red"
+
+ysColor :: String
+ysColor = "blue"
+
+resultColor :: String
+resultColor = "magenta"
+
+typeSigSvg :: SVG
+typeSigSvg = centerX $ latexCfgCenteredYWith
+    firaMonoCfg
+    (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    "(++) :: [a] -> [a] -> [a]"
+
+funcDefSvgs :: [SVG]
+funcDefSvgs = centerGroupX $ latexCfgChunksCenteredYWith
+    firaMonoCfg
+    (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    ["xs ", "++ ", "ys"]
+
+xsBoxesSvgs :: [SVG]
+xsBoxesSvgs = list3Boxes xsColor
+
+xsLabelsSvgs :: [SVG]
+xsLabelsSvgs = list3Labels xsColor "x" "m"
+
+ysBoxesSvgs :: [SVG]
+ysBoxesSvgs = list4Boxes ysColor
+
+ysLabelsSvgs :: [SVG]
+ysLabelsSvgs = list4Labels ysColor "y" "n"
 
 {-|
     Animation for the '(Data.List.++)' function.
 -}
 concatAnimation :: Animation
 concatAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
-    let
-        xsColor = "red"
-        ysColor = "blue"
-        combinedColor = "magenta"
-        typeSigGlyph =
-            withDefaultBoldTextStrokeFill
-            . translate 0 2.5
-            . centerX
-            . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "(++) :: [a] -> [a] -> [a]"
-        funcDefGlyph =
-            withDefaultBoldTextStrokeFill
-            . translate 0 1.5
-            . centerX
-            . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "xs ++ ys"
+    typeSig <- oNew typeSigSvg
+    oModify typeSig $ oTranslate .~ V2 0 2.5
+    
+    funcDef <- oNew $ mkGroup funcDefSvgs
+    funcDefSplit@(~[funcDefXs, funcDefAppend, funcDefYs]) <-
+        traverse oNew funcDefSvgs
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 1.5)
+        (funcDef : funcDefSplit)
 
-    typeSig <- oNew typeSigGlyph
-    funcDef <- oNew funcDefGlyph
+    xsBoxes <- oNew $ mkGroup xsBoxesSvgs
+    xsLabels <- oNew $ mkGroup xsLabelsSvgs
 
-    xsBoxes <- oNew . mkGroup $ list3Boxes xsColor
-    xsLabels <- oNew . mkGroup $ list3Labels xsColor "x" "m"
-
-    ysBoxes <- oNew . mkGroup $ list4Boxes ysColor
-    ysLabels <- oNew . mkGroup $ list4Labels ysColor "y" "n"
+    ysBoxes <- oNew $ mkGroup ysBoxesSvgs
+    ysLabels <- oNew $ mkGroup ysLabelsSvgs
 
     let
-        showTypeSigFuncDef = forkAllWithLag 0.25
-            [ oShowWith typeSig $ setDuration 1 . oDraw
-            , oShowWith funcDef $ setDuration 1 . oDraw
+        showTypeSigFuncDef d = waitOn $ do
+            fork . oShowWith typeSig $ setDuration d . oDraw
+            wait (d/4)
+            oShowWith funcDef $ setDuration d . oDraw
+            oHide funcDef
+            traverse_ oShow funcDefSplit
+
+        showXs d = waitOn $ forkAll
+            [ oTweenContext funcDefXs d $ withTweenedColor fgColor xsColor
+            , oShowWith xsBoxes $ setDuration d . oDraw
+            , wait (d/4) >> oShowWith xsLabels (setDuration d . oDraw)
             ]
 
-        showXs = forkAllWithDifferentLags $ zip
-            [0, 0.25, 0]
-            [ oTweenContext funcDef 1 $ \t ->
-                  withSubglyphs [0, 1] (withTweenedColor "black" xsColor t)
-            , oShowWith xsBoxes $ setDuration 1 . oDraw
-            , oShowWith xsLabels $ setDuration 1 . oDraw
+        moveXsBottomLeft d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveTo (-4.5, -1.5))
+            [xsBoxes, xsLabels]
+
+        showYs d = waitOn $ forkAll
+            [ oTweenContext funcDefYs d $ withTweenedColor fgColor ysColor
+            , oShowWith ysBoxes $ setDuration d . oDraw
+            , wait (d/4) >> oShowWith ysLabels (setDuration d . oDraw)
             ]
 
-        moveXsBottomLeft = forkAll
-            [ oTween xsBoxes 1 $ oMoveTo (-4.5, -1.5)
-            , oTween xsLabels 1 $ oMoveTo (-4.5, -1.5)
-            ]
+        moveYsBottomRight d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveTo (3.5, -1.5))
+            [ysBoxes, ysLabels]
 
-        showYs = forkAllWithDifferentLags $ zip
-            [0, 0.25, 0]
-            [ oTweenContext funcDef 1 $ \t ->
-                  withSubglyphs [4, 5] (withTweenedColor "black" ysColor t)
-            , oShowWith ysBoxes $ setDuration 1 . oDraw
-            , oShowWith ysLabels $ setDuration 1 . oDraw
-            ]
+        moveFuncDefDown d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveBy (0, -1))
+            funcDefSplit
 
-        moveYsBottomRight = forkAll
-            [ oTween ysBoxes 1 $ oMoveTo (3.5, -1.5)
-            , oTween ysLabels 1 $ oMoveTo (3.5, -1.5)
-            ]
+        snapXsYs d = waitOn . forkAll
+            $ fmap
+                (\obj -> oTween obj d $ oMoveBy (1, 0))
+                [xsBoxes, xsLabels]
+            ++ fmap
+                (\obj -> oTween obj d $ oMoveBy (-1, 0))
+                [ysBoxes, ysLabels]
 
-        moveFuncDefDown = oTween funcDef 1 $ oMoveTo (0, -1)
-
-        snapXsYs = do
-            traverse_
-                (\x ->
-                    oModify x $ oEasing .~ powerS 5)
-                [xsBoxes, xsLabels, ysBoxes, ysLabels]
-            forkAll
-                [ oTween xsBoxes 0.5 $ oMoveTo (-3.5, -1.5)
-                , oTween xsLabels 0.5 $ oMoveTo (-3.5, -1.5)
-                , oTween ysBoxes 0.5 $ oMoveTo (2.5, -1.5)
-                , oTween ysLabels 0.5 $ oMoveTo (2.5, -1.5)
-                ]
-            traverse_
-                (\x -> oModify x $ oEasing .~ curveS 2)
-                [xsBoxes, xsLabels, ysBoxes, ysLabels]
-
-        highlightCombinedXsYs = traverse_
-            (\x -> oModify x $ oContext .~
-                withSubglyphs [0 ..] (withColor combinedColor))
-            [funcDef, xsBoxes, xsLabels, ysBoxes, ysLabels]
+        highlightResult d = waitOn . forkAll
+            $ oTweenColor fgColor resultColor funcDefAppend d
+            : fmap
+                (\obj -> oTweenColor xsColor resultColor obj d)
+                [funcDefXs, xsBoxes, xsLabels]
+            ++ fmap
+                (\obj -> oTweenColor ysColor resultColor obj d)
+                [funcDefYs, ysBoxes, ysLabels]
+            where
+                oTweenColor start end obj d' = oTweenContext obj d'
+                    $ \t -> withSubglyphs [0 ..] (withTweenedColor start end t)
 
     wait 1
-
-    showTypeSigFuncDef
-
+    
+    showTypeSigFuncDef 1
+    
+    wait 0.5
+    
+    showXs 1
+    moveXsBottomLeft 1
+    showYs 1
+    fork $ moveYsBottomRight 1
+    moveFuncDefDown 1
+    
     wait 0.5
 
-    showXs
-
-    moveXsBottomLeft
-
-    showYs
-
-    fork moveYsBottomRight
-    moveFuncDefDown
-
-    wait 0.5
-
-    snapXsYs
-
-    highlightCombinedXsYs
+    traverse_
+        (`oModify` (oEasing .~ snapInS))
+        [xsBoxes, xsLabels, ysBoxes, ysLabels]
+    snapXsYs 0.5
+    traverse_
+        (`oModify` (oEasing .~ curveS 2))
+        [xsBoxes, xsLabels, ysBoxes, ysLabels]
+    highlightResult 0
 
     wait 3
