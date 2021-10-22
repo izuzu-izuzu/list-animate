@@ -23,10 +23,15 @@ dependencies:
 - base >= 4.7 && < 5
 - reanimate
 - reanimate-svg
+- brick
 - linear
 - text
 - lens
 - JuicyPixels
+- vty
+- vector
+- hint
+- word-wrap
 - raw-strings-qq
 - pretty-simple
 
