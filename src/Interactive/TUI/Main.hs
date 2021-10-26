@@ -19,9 +19,9 @@ import Control.Lens (makeLenses, (^.), (.~))
 import Data.Text (Text)
 
 import Brick
-import Brick.Forms (Form (formState, formFocus), editTextField, focusedFormInputAttr, invalidFormInputAttr, newForm, radioField, renderForm, handleFormEvent, listField, setFormFocus, setFieldConcat)
+import Brick.Forms (Form (formState, formFocus), editTextField, focusedFormInputAttr, invalidFormInputAttr, newForm, radioField, renderForm, handleFormEvent, listField, setFormFocus, setFieldConcat, radioCustomField, FormFieldState)
 import Brick.Widgets.Edit (editAttr, editFocusedAttr)
-import Graphics.Vty (Event (EvKey, EvResize), Key (KEnter, KEsc), black, defAttr, red, white, yellow, mkVty, standardIOConfig, Output (setMode), Vty (outputIface), blue, green, brightBlack)
+import Graphics.Vty (Event (EvKey, EvResize), Key (KEnter, KEsc, KChar), black, defAttr, red, white, yellow, mkVty, standardIOConfig, Output (setMode), Vty (outputIface), blue, green, brightBlack)
 import Data.Vector (fromList)
 import Brick.Focus (focusRingCursor, focusGetCurrent)
 import qualified Graphics.Vty as Vty
@@ -29,13 +29,15 @@ import Text.Pretty.Simple (pPrint)
 import Brick.Widgets.List (listAttr, listSelectedAttr)
 import Data.Maybe (fromMaybe)
 import Data.List (intersperse)
+import Brick.Widgets.Center (hCenter)
+import Brick.Widgets.Border (border)
 
 data Input = Input
     { _mode1Edit :: Text
     , _mode2Edit1 :: Text
     , _mode2Edit2 :: Text
     , _mode3Edit :: Text
-    , _navChoice :: Maybe NavChoice
+    , _navChoice :: NavChoice
     }
     deriving Show
 
@@ -45,13 +47,14 @@ data Name
     | Mode2Edit2Field
     | Mode3EditField
     | NavChoiceField
+    | NavCurrField
+    | NavHomeField
     | NavPrevField
     | NavNextField
-    | NavHomeField
     | NavQuitField
     deriving (Bounded, Enum, Eq, Ord, Show)
 
-data NavChoice = NavPrev | NavNext | NavHome | NavQuit
+data NavChoice = NavCurr | NavHome | NavPrev | NavNext | NavQuit
     deriving (Bounded, Enum, Eq, Show)
 
 data Mode = Mode1 | Mode2 | Mode3
@@ -85,34 +88,39 @@ main = do
 
     putStrLn "App ends here."
 
+makeNavField :: Text -> Input -> FormFieldState Input e Name
+makeNavField currentLabel =
+    setFieldConcat (\(x:xs) -> x <+> fill ' ' <+> hBox xs)
+    . radioCustomField
+        ' '
+        ' '
+        ' '
+        navChoice
+        (zip3
+            [NavCurr .. NavQuit]
+            [NavCurrField .. NavQuitField]
+            (fmap
+                (<> "    ")
+                [ "*" <> currentLabel <> "*"
+                , "[Home]"
+                , "[Previous]"
+                , "[Next]"
+                , "[Quit]"
+                ]))
+       
 makeForm :: Mode -> Input -> Form Input e Name
 makeForm Mode1 = newForm
     [ editTextField mode1Edit Mode1EditField (Just 3)
-    , setFieldConcat (hBox . intersperse (str "  ")) . listField
-        (const $ fromList [NavPrev .. NavQuit])
-        navChoice
-        (\b i -> str $ (if b then "> " else "  ") <> show i)
-        1
-        NavChoiceField
+    , makeNavField "Mode1"
     ]
 makeForm Mode2 = newForm
     [ editTextField mode2Edit1 Mode2Edit1Field (Just 2)
     , editTextField mode2Edit2 Mode2Edit2Field (Just 1)
-    , setFieldConcat (hBox . intersperse (str "  ")) . listField
-        (const $ fromList [NavPrev .. NavQuit])
-        navChoice
-        (\b i -> str $ (if b then "> " else "  ") <> show i)
-        1
-        NavChoiceField
+    , makeNavField "Mode2"
     ]
 makeForm Mode3 = newForm
     [ editTextField mode3Edit Mode3EditField (Just 3)
-    , setFieldConcat (hBox . intersperse (str "  ")) . listField
-        (const $ fromList [NavPrev .. NavQuit])
-        navChoice
-        (\b i -> str $ (if b then "> " else "  ") <> show i)
-        1
-        NavChoiceField
+    , makeNavField "Mode3"
     ]
 
 makePrompt :: Mode -> Input -> String
@@ -132,6 +140,7 @@ syncToMode s@State{_mode = m, _form = f} = s
     }
 
 navByFrom :: NavChoice -> Mode -> Mode
+navByFrom NavCurr m = m
 navByFrom NavPrev Mode1 = Mode3
 navByFrom NavPrev m = pred m
 navByFrom NavNext Mode3 = Mode1
@@ -155,15 +164,13 @@ updateMode s@State{_mode = m, _form = f, _prompt = p} = s
     }
     where
         nav = (^. navChoice) $ formState f
-        m' = case nav of
-            Nothing -> m
-            Just n -> navByFrom n m
+        m' = navByFrom nav m
         f' = case nav of
-            Nothing -> f
-            Just _ -> makeForm m' $ formState f
+            NavCurr -> f
+            _ -> makeForm m' $ formState f
         p' = case nav of
-            Nothing -> p
-            Just _ -> makePrompt m' $ formState f
+            NavCurr -> p
+            _ -> makePrompt m' $ formState f
 
 themeMap :: AttrMap
 themeMap = attrMap defAttr
@@ -183,15 +190,24 @@ appEvent state (VtyEvent EvResize{}) = continue state
 appEvent state (VtyEvent (EvKey KEsc [])) = halt state
 appEvent state (VtyEvent (EvKey KEnter [])) = do
     let
-        state' = updateMode state
-        focus =
-            fromMaybe NavChoiceField
+        focus = 
+            fromMaybe NavCurrField
             . focusGetCurrent
             . formFocus
             . (^. form)
             $ state
-        form' = setFormFocus focus $ state' ^. form
-    continue . (form .~ form') $ state'
+    state' <-
+        if focus `elem` [NavCurrField .. NavQuitField]
+        then updateMode <$> handleEventLensed
+             state
+             form
+             handleFormEvent
+             (VtyEvent (EvKey (KChar ' ') []))
+        else pure $ updateMode state
+    let form' = setFormFocus focus $ state' ^. form
+    case focus of
+        NavQuitField -> halt state'
+        _ -> continue . (form .~ form') $ state'
 appEvent state event =
     continue =<< handleEventLensed state form handleFormEvent event
         
@@ -211,4 +227,4 @@ initialState = State
    , _form = makeForm Mode1 initialInput
    , _prompt = makePrompt Mode1 initialInput
    }
-   where initialInput = Input "m1" "m2.1" "m2.2" "m3" Nothing
+   where initialInput = Input "m1" "m2.1" "m2.2" "m3" NavCurr
