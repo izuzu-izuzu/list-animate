@@ -10,6 +10,7 @@ module Interactive.TUI.Append where
 import Brick
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
+import Interactive.TUI.Home
 import Brick.Forms
 import Language.Haskell.Interpreter (InterpreterError (UnknownError), eval, runInterpreter, setImports, MonadIO (liftIO), runStmt, parens, MonadInterpreter)
 import Data.List (intersperse)
@@ -21,7 +22,8 @@ import Data.Maybe (fromMaybe)
 import Graphics.Vty hiding (Input)
 import Text.Printf (printf)
 import Control.Monad ((<=<))
-import Interactive.TUI.Core
+import Animations.Append (appendAnimation)
+import Reanimate (reanimate)
 
 makeForm :: Input -> Form Input e Name
 makeForm =
@@ -94,9 +96,7 @@ animateEvent state = do
         <=< loadYs
         $ state
     case (xs, ys) of
-        (Right xs', Right ys') -> do
-            halt state
-            liftIO $ print xs'
-            liftIO $ print ys'
-            halt state
+        (Right _, Right _) -> do
+            liftIO $ reanimate appendAnimation
+            homeEvent state
         _ -> previewEvent state

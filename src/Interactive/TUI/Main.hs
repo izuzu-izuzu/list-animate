@@ -33,7 +33,9 @@ import Brick.Widgets.Center (hCenter)
 import Brick.Widgets.Border (border)
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
+import Interactive.TUI.Home
 import Interactive.TUI.Append
+import qualified Interactive.TUI.Home as Home
 import qualified Interactive.TUI.Append as Append
 
 main :: IO ()
@@ -63,12 +65,7 @@ drawUI s = [renderForm f <=> str o]
         o= s ^. output
 
 makeModeForm :: Mode -> Input -> Form Input e Name
-makeModeForm Home = newForm
-    [ radioField
-        emptyInputField
-        [ ((), SelectFnAppendField, "(++) :: [a] -> [a] -> [a]")
-        ]
-    ]
+makeModeForm Home = Home.makeForm
 makeModeForm FnAppend = Append.makeForm
 makeModeForm _ = newForm []
 
@@ -139,12 +136,7 @@ appEvent state (KEnterEvent []) = do
             $ state
     case focus of
         NavCurrentField -> continue state
-        NavHomeField ->
-            continue
-            . (output .~ "<prompt>")
-            . (form .~ (makeModeForm Home . formState . (^. form) $ state))
-            . (mode .~ Home)
-            $ state
+        NavHomeField -> homeEvent state
         NavQuitField -> halt state
         NavPreviewField -> modePreviewEvent (state ^. mode) state
         NavAnimateField -> modeAnimateEvent (state ^. mode) state
