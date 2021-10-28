@@ -1,9 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -20,23 +16,25 @@ import Data.Text (unpack)
 import System.Timeout (timeout)
 import Data.Maybe (fromMaybe)
 import Text.Printf (printf)
+import Control.Exception (evaluate)
+import Control.DeepSeq (force, NFData (rnf))
 
 runLimitedInterpreter
     :: MonadIO m
     => Interpreter String
     -> m (Either InterpreterError String)
-runLimitedInterpreter tasks =
-    liftIO
-    . fmap (fromMaybe $ Left TimeoutError)
-    . timeout maxTimeout
-    $ do
-        result <- runInterpreter $ do
-            setImports ["Prelude", "Text.Show.Functions"]
-            tasks
-        pure $ case drop maxOutputLength <$> result of
-            Left err -> Left err
-            Right [] -> result
-            Right _ -> Left OutputTooLongError
+runLimitedInterpreter task = liftIO $ do
+    result <- runInterpreter $ do
+        setImports ["Prelude", "Text.Show.Functions"]
+        task
+    timeoutResult <- timeout maxTimeout $ do
+        evaluate $ either (const ()) rnf result
+        pure result
+    pure $ case fmap (drop maxOutputLength <$>) timeoutResult of
+        Nothing -> Left TimeoutError
+        Just (Left err) -> Left err
+        Just (Right []) -> result
+        Just (Right _) -> Left OutputTooLongError
 
 {-|
     A list must have 7 elements or fewer, with each element having length 5 or lower.
@@ -69,7 +67,7 @@ validateSplitListStr
     -> m (Either InterpreterError [String])
 validateSplitListStr listStr =
     either (pure . Left) splitListStr =<< validateListStr listStr
-    
+
 validateList :: Show a => [a] -> Bool
 validateList =
     and
@@ -138,7 +136,7 @@ elementTooLongErrorMessage = printf
     maxElementLength
 
 maxTimeout :: Int
-maxTimeout = 3 * 10^(6 :: Int)
+maxTimeout = 2 * 10^(6 :: Int)
 
 maxOutputLength :: Int
 maxOutputLength = 200
