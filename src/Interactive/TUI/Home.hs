@@ -1,28 +1,16 @@
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE NamedFieldPuns #-}
 
 module Interactive.TUI.Home where
 
-import Brick
-import Interactive.TUI.Core
-import Interactive.TUI.Interpreter
-import Brick.Forms
-import Language.Haskell.Interpreter (InterpreterError (UnknownError), eval, runInterpreter, setImports, MonadIO (liftIO), runStmt, parens, MonadInterpreter)
+import Control.Lens ((.~), (^.))
 import Data.List (intersperse)
-import Control.Lens ((^.), (.~))
-import Brick.Focus
-import Data.Text (unpack)
-import System.Timeout (timeout)
-import Data.Maybe (fromMaybe)
-import Graphics.Vty hiding (Input)
-import Text.Printf (printf)
-import Control.Monad ((<=<))
-import Animations.Append (appendAnimation)
-import Reanimate (reanimate)
+
+import Brick
+import Brick.Forms
+
+import Interactive.TUI.Core
 
 makeForm :: Input -> Form Input e Name
 makeForm =
@@ -34,9 +22,9 @@ makeForm =
             , ((), SelectFnHeadField, "head :: [a] -> a")
             ]
         ]
-    
+
 homeEvent :: State e -> EventM Name (Next (State e))
-homeEvent state = 
+homeEvent state =
     continue
     . (output .~ "<prompt>")
     . (form .~ (makeForm . formState . (^. form) $ state))

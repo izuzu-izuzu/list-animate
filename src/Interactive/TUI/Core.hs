@@ -1,20 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Interactive.TUI.Core where
 
 import Control.Lens (makeLenses)
 import Data.Text (Text)
-
+import Graphics.Vty
+    ( Event (EvKey, EvResize)
+    , Key (KChar, KEnter, KEsc)
+    , Modifier
+    )
+    
 import Brick
 import Brick.Forms (Form, FormFieldState, radioCustomField, setFieldConcat)
-import Graphics.Vty (Event(EvResize, EvKey), Key (KEsc, KEnter, KChar))
-import Graphics.Vty.Input (Modifier)
 
 data Input = Input
     { _arg1 :: Text

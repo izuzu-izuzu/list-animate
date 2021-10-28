@@ -5,19 +5,19 @@
 
 module Interactive.TUI.Interpreter where
 
-import Brick
-import Interactive.TUI.Core
-import Brick.Forms
-import Language.Haskell.Interpreter
-import Data.List (intersperse)
-import Control.Lens ((^.))
-import Brick.Focus
-import Data.Text (unpack)
-import System.Timeout (timeout)
-import Data.Maybe (fromMaybe)
-import Text.Printf (printf)
+import Control.DeepSeq (NFData (rnf))
 import Control.Exception (evaluate)
-import Control.DeepSeq (force, NFData (rnf))
+import Language.Haskell.Interpreter
+    ( Interpreter
+    , InterpreterError (UnknownError)
+    , MonadIO (..)
+    , eval
+    , parens
+    , runInterpreter
+    , setImports
+    )
+import System.Timeout (timeout)
+import Text.Printf (printf)
 
 runLimitedInterpreter
     :: MonadIO m
@@ -37,7 +37,8 @@ runLimitedInterpreter task = liftIO $ do
         Just (Right _) -> Left OutputTooLongError
 
 {-|
-    A list must have 7 elements or fewer, with each element having length 5 or lower.
+    A list must have 7 elements or fewer, with each element having length 5 or
+    lower.
 -}
 splitListStr :: MonadIO m => String -> m (Either InterpreterError [String])
 splitListStr =
@@ -155,4 +156,3 @@ pattern ListTooLongError = UnknownError "ListTooLong"
 
 pattern ElementTooLongError :: InterpreterError
 pattern ElementTooLongError = UnknownError "ElementTooLong"
-

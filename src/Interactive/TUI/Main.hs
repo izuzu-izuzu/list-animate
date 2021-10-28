@@ -1,9 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 {-|
     NOTE: This app is supposed to have multiple pages, each with its own form.
@@ -15,30 +12,43 @@
 -}
 module Interactive.TUI.Main (main) where
 
-import Control.Lens (makeLenses, (^.), (.~), (%~))
-import Data.Text (Text)
-
-import Brick
-import Brick.Forms (Form (formState, formFocus), editTextField, focusedFormInputAttr, invalidFormInputAttr, newForm, radioField, renderForm, handleFormEvent, listField, setFormFocus, setFieldConcat, radioCustomField, FormFieldState)
-import Brick.Widgets.Edit (editAttr, editFocusedAttr)
-import Graphics.Vty (Event (EvKey, EvResize), Key (KEnter, KEsc, KChar), black, defAttr, red, white, yellow, mkVty, standardIOConfig, Output (setMode), Vty (outputIface), blue, green, brightBlack)
-import Data.Vector (fromList)
-import Brick.Focus (focusRingCursor, focusGetCurrent)
+import Control.Lens ((.~), (^.))
+import Data.Maybe (fromMaybe)
+import Graphics.Vty
+    ( Output (setMode)
+    , Vty (outputIface)
+    , black
+    , blue
+    , brightBlack
+    , defAttr
+    , green
+    , mkVty
+    , red
+    , standardIOConfig
+    , white
+    , yellow
+    )
 import qualified Graphics.Vty as Vty
 import Text.Pretty.Simple (pPrint)
+
+import Brick
+import Brick.Focus (focusGetCurrent, focusRingCursor)
+import Brick.Forms
+    ( Form (formFocus, formState)
+    , focusedFormInputAttr
+    , handleFormEvent
+    , invalidFormInputAttr
+    , newForm
+    , renderForm
+    )
+import Brick.Widgets.Edit (editAttr, editFocusedAttr)
 import Brick.Widgets.List (listAttr, listSelectedAttr)
-import Data.Maybe (fromMaybe)
-import Data.List (intersperse)
-import Brick.Widgets.Center (hCenter)
-import Brick.Widgets.Border (border)
-import Interactive.TUI.Core
-import Interactive.TUI.Interpreter
-import Interactive.TUI.Home
-import Interactive.TUI.Append
-import Interactive.TUI.Head
-import qualified Interactive.TUI.Home as Home
+
 import qualified Interactive.TUI.Append as Append
+import Interactive.TUI.Core
 import qualified Interactive.TUI.Head as Head
+import Interactive.TUI.Home
+import qualified Interactive.TUI.Home as Home
 
 main :: IO ()
 main = do
@@ -62,9 +72,8 @@ main = do
 drawUI :: State e -> [Widget Name]
 drawUI s = [renderForm f <=> str o]
     where
-        m = s ^. mode
         f = s ^. form
-        o= s ^. output
+        o = s ^. output
 
 makeModeForm :: Mode -> Input -> Form Input e Name
 makeModeForm Home = Home.makeForm
@@ -82,41 +91,6 @@ modeAnimateEvent :: Mode -> State e -> EventM Name (Next (State e))
 modeAnimateEvent FnAppend = Append.animateEvent
 modeAnimateEvent FnHead = Head.animateEvent
 modeAnimateEvent _ = continue . (output .~ "<animate>")
-
-{-
-syncToMode :: State e -> State e
-syncToMode s@State{_mode = m, _form = f} = s
-    { _form = makeForm m $ formState f
-    , _output = makePrompt m $ formState f
-    }
--}
-
-{-
-navigateMode :: NavChoice -> State e -> State e
-navigateMode nav s@State{_mode = m, _form = f} = s
-    { _mode = m'
-    , _form = makeForm m' $ formState f
-    , _prompt = makePrompt m' $ formState f
-    }
-    where m' = navByFrom nav m
--}
-{-
-updateMode :: State e -> State e
-updateMode s@State{_mode = m, _form = f, _output = o} = s
-    { _mode = m'
-    , _form = f'
-    , _output = o'
-    }
-    where
-        nav = (^. navChoice) $ formState f
-        m' = navByFrom nav m
-        f' = case nav of
-            NavCurrent -> f
-            _ -> f
-        o' = case nav of
-            NavCurrent -> o
-            _ -> o
--}
 
 themeMap :: AttrMap
 themeMap = attrMap defAttr

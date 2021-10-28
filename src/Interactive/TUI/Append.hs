@@ -7,23 +7,30 @@
 
 module Interactive.TUI.Append where
 
-import Brick
-import Interactive.TUI.Core
-import Interactive.TUI.Interpreter
-import Interactive.TUI.Home
-import Brick.Forms
-import Language.Haskell.Interpreter (InterpreterError (UnknownError), eval, runInterpreter, setImports, MonadIO (liftIO), runStmt, parens, MonadInterpreter)
-import Data.List (intersperse)
-import Control.Lens ((^.), (.~))
-import Brick.Focus
-import Data.Text (unpack)
-import System.Timeout (timeout)
-import Data.Maybe (fromMaybe)
-import Graphics.Vty hiding (Input)
-import Text.Printf (printf)
+import Control.Lens ((.~), (^.))
 import Control.Monad ((<=<))
-import Animations.Append (appendAnimation)
+import Data.List (intersperse)
+import Data.Text (unpack)
+import Language.Haskell.Interpreter
+    ( InterpreterError
+    , MonadIO (liftIO)
+    , eval
+    , parens
+    , runStmt
+    )
+import Text.Printf (printf)
+
 import Reanimate (reanimate)
+
+import Brick
+import Brick.Focus (focusGetCurrent)
+import Brick.Forms (Form (..), editTextField, newForm, setFormConcat, (@@=))
+
+import Animations.Append (appendAnimation)
+
+import Interactive.TUI.Core
+import Interactive.TUI.Home
+import Interactive.TUI.Interpreter
 
 makeForm :: Input -> Form Input e Name
 makeForm =
@@ -83,8 +90,6 @@ previewEvent state = do
 
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
-    let
-        currentForm = state ^. form
     xs <-
         either (pure . Left) splitListStr
         <=< either (pure . Left) validateListStr
