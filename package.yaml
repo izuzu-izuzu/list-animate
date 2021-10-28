@@ -32,6 +32,7 @@ dependencies:
 - vector
 - hint
 - word-wrap
+- deepseq
 - raw-strings-qq
 - pretty-simple
 
