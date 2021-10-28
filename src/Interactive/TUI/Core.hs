@@ -38,6 +38,7 @@ data Name
     | NavPreviewField
     | NavAnimateField
     | SelectFnAppendField
+    | SelectFnHeadField
     deriving (Bounded, Enum, Eq, Ord, Show)
 
 data NavChoice = NavCurrent | NavHome | NavQuit | NavPreview | NavAnimate

@@ -35,8 +35,10 @@ import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
 import Interactive.TUI.Home
 import Interactive.TUI.Append
+import Interactive.TUI.Head
 import qualified Interactive.TUI.Home as Home
 import qualified Interactive.TUI.Append as Append
+import qualified Interactive.TUI.Head as Head
 
 main :: IO ()
 main = do
@@ -67,15 +69,18 @@ drawUI s = [renderForm f <=> str o]
 makeModeForm :: Mode -> Input -> Form Input e Name
 makeModeForm Home = Home.makeForm
 makeModeForm FnAppend = Append.makeForm
+makeModeForm FnHead = Head.makeForm
 makeModeForm _ = newForm []
 
 modePreviewEvent :: Mode -> State e -> EventM Name (Next (State e))
 modePreviewEvent Home = continue . (output .~ "<preview>")
 modePreviewEvent FnAppend = Append.previewEvent
+modePreviewEvent FnHead = Head.previewEvent
 modePreviewEvent _ = continue
 
 modeAnimateEvent :: Mode -> State e -> EventM Name (Next (State e))
 modeAnimateEvent FnAppend = Append.animateEvent
+modeAnimateEvent FnHead = Head.animateEvent
 modeAnimateEvent _ = continue . (output .~ "<animate>")
 
 {-
@@ -145,6 +150,12 @@ appEvent state (KEnterEvent []) = do
             . (output .~ "<prompt>")
             . (form .~ (makeModeForm FnAppend . formState . (^. form) $ state))
             . (mode .~ FnAppend)
+            $ state
+        SelectFnHeadField ->
+            continue
+            . (output .~ "<prompt>")
+            . (form .~ (makeModeForm FnHead . formState . (^. form) $ state))
+            . (mode .~ FnHead)
             $ state
         _ -> continue
             =<< handleEventLensed state form handleFormEvent (KEnterEvent [])
