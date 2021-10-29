@@ -26,7 +26,7 @@ import Brick
 import Brick.Focus (focusGetCurrent)
 import Brick.Forms (Form (..), editTextField, newForm, setFormConcat, (@@=))
 
-import Animations.Append (appendAnimation)
+import Animations.Append (appendDynamicAnimation)
 
 import Interactive.TUI.Core
 import Interactive.TUI.Home
@@ -67,9 +67,10 @@ loadResult state = do
         currentForm = state ^. form
         Input{_arg1 = xs, _arg2 = ys} = formState currentForm
     result <- runLimitedInterpreter $ do
-        runStmt . ("xs <- " <>) . parens . unpack $ xs
-        runStmt . ("ys <- " <>) . parens . unpack $ ys
-        eval "xs ++ ys"
+        let
+            xs' = parens . unpack $ xs
+            ys' = parens . unpack $ ys
+        eval $ printf "%v ++ %v" xs' ys'
     either (pure . Left) splitListStr result
 
 previewEvent :: State e -> EventM Name (Next (State e))
@@ -100,8 +101,9 @@ animateEvent state = do
         <=< either (pure . Left) validateListStr
         <=< loadYs
         $ state
-    case (xs, ys) of
-        (Right _, Right _) -> do
-            liftIO $ reanimate appendAnimation
+    result <- loadResult state
+    case (xs, ys, result) of
+        (Right xs', Right ys', Right _) -> do
+            liftIO . reanimate $ appendDynamicAnimation xs' ys'
             homeEvent state
         _ -> previewEvent state

@@ -2,10 +2,11 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Animations.Append (main, appendAnimation) where
+module Animations.Append (main, appendAnimation, appendDynamicAnimation) where
 
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
+import Data.Text (pack)
 import Linear (V2 (V2))
 
 import Reanimate
@@ -32,8 +33,14 @@ env :: Animation -> Animation
 env =
     docEnv
     . addStatic (mkBackground bgColor)
-    . addStatic mkBackgroundGrid
-    . addStatic mkBackgroundAxes
+    -- . addStatic mkBackgroundGrid
+    -- . addStatic mkBackgroundAxes
+
+transitions :: Animation -> Animation
+transitions = applyE (overEnding 1 fadeOutE)
+
+prepareScene :: Animation -> Animation
+prepareScene = env . transitions
 
 fgColor :: String
 fgColor = "black"
@@ -78,10 +85,10 @@ ysLabelsSvgs = list4Labels ysColor "y" "n"
     Animation for the '(Data.List.++)' function.
 -}
 appendAnimation :: Animation
-appendAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
+appendAnimation = prepareScene $ scene $ do
     typeSig <- oNew typeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
-    
+
     funcDef <- oNew $ mkGroup funcDefSvgs
     funcDefSplit@(~[funcDefXs, funcDefAppend, funcDefYs]) <-
         traverse oNew funcDefSvgs
@@ -148,17 +155,159 @@ appendAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                     $ \t -> withSubglyphs [0 ..] (withTweenedColor start end t)
 
     wait 1
-    
+
     showTypeSigFuncDef 1
-    
+
     wait 0.5
-    
+
     showXs 1
     moveXsBottomLeft 1
     showYs 1
     fork $ moveYsBottomRight 1
     moveFuncDefDown 1
-    
+
+    wait 0.5
+
+    traverse_
+        (`oModify` (oEasing .~ snapInS))
+        [xsBoxes, xsLabels, ysBoxes, ysLabels]
+    snapXsYs 0.5
+    traverse_
+        (`oModify` (oEasing .~ curveS 2))
+        [xsBoxes, xsLabels, ysBoxes, ysLabels]
+    highlightResult 0
+
+    wait 3
+
+dynamicBoxWidth :: Double
+dynamicBoxWidth = 1.2
+
+withDynamicBoxStrokeFill :: SVG -> SVG
+withDynamicBoxStrokeFill = withStrokeWidth 0.03 . withFillOpacity 0
+
+dynamicLabelTextScale :: Double
+dynamicLabelTextScale = 0.3
+
+makeDynamicXsBoxesSvgs :: [String] -> [SVG]
+makeDynamicXsBoxesSvgs xs = customListBoxesWith
+    (dynamicBoxWidth <$ xs)
+    (withColor xsColor . withDynamicBoxStrokeFill)
+
+makeDynamicYsBoxesSvgs :: [String] -> [SVG]
+makeDynamicYsBoxesSvgs ys = customListBoxesWith
+    (dynamicBoxWidth <$ ys)
+    (withColor ysColor . withDynamicBoxStrokeFill)
+
+makeDynamicXsLabelsSvgs :: [String] -> [SVG]
+makeDynamicXsLabelsSvgs xs = customListLabelsWith
+    (dynamicBoxWidth <$ xs)
+    ( withColor xsColor
+    . withDefaultTextStrokeFill
+    . scale dynamicLabelTextScale
+    . centerX
+    )
+    (pack <$> xs)
+
+makeDynamicYsLabelsSvgs :: [String] -> [SVG]
+makeDynamicYsLabelsSvgs ys = customListLabelsWith
+    (dynamicBoxWidth <$ ys)
+    ( withColor ysColor
+    . withDefaultTextStrokeFill
+    . scale dynamicLabelTextScale
+    . centerX
+    )
+    (pack <$> ys)
+
+appendDynamicAnimation :: [String] -> [String] -> Animation
+appendDynamicAnimation xs ys = prepareScene $ scene $ do
+    typeSig <- oNew typeSigSvg
+    oModify typeSig $ oTranslate .~ V2 0 2.5
+
+    funcDef <- oNew $ mkGroup funcDefSvgs
+    funcDefSplit@(~[funcDefXs, funcDefAppend, funcDefYs]) <-
+        traverse oNew funcDefSvgs
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 1.5)
+        (funcDef : funcDefSplit)
+
+    xsBoxes <- oNew . mkGroup . makeDynamicXsBoxesSvgs $ xs
+    xsLabels <- oNew . mkGroup . makeDynamicXsLabelsSvgs $ xs
+
+    ysBoxes <- oNew . mkGroup . makeDynamicYsBoxesSvgs $ ys
+    ysLabels <- oNew . mkGroup . makeDynamicYsLabelsSvgs $ ys
+
+    let
+        hSep = 1
+        ~[xsStartPosX, _, ysStartPosX] = distribute1D
+            [ sum (dynamicBoxWidth <$ xs)
+            , hSep
+            , sum (dynamicBoxWidth <$ ys)
+            ]
+
+    let
+        showTypeSigFuncDef d = waitOn $ do
+            fork . oShowWith typeSig $ setDuration d . oDraw
+            wait (d/4)
+            oShowWith funcDef $ setDuration d . oDraw
+            oHide funcDef
+            traverse_ oShow funcDefSplit
+
+        showXs d = waitOn $ forkAll
+            [ oTweenContext funcDefXs d $ withTweenedColor fgColor xsColor
+            , oShowWith xsBoxes $ setDuration d . oDraw
+            , wait (d/4) >> oShowWith xsLabels (setDuration d . oDraw)
+            ]
+
+        moveXsBottomLeft d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveTo (xsStartPosX, -1.5))
+            [xsBoxes, xsLabels]
+
+        showYs d = waitOn $ forkAll
+            [ oTweenContext funcDefYs d $ withTweenedColor fgColor ysColor
+            , oShowWith ysBoxes $ setDuration d . oDraw
+            , wait (d/4) >> oShowWith ysLabels (setDuration d . oDraw)
+            ]
+
+        moveYsBottomRight d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveTo (ysStartPosX, -1.5))
+            [ysBoxes, ysLabels]
+
+        moveFuncDefDown d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveBy (0, -1))
+            funcDefSplit
+
+        snapXsYs d = waitOn . forkAll
+            $ fmap
+                (\obj -> oTween obj d $ oMoveBy (hSep/2, 0))
+                [xsBoxes, xsLabels]
+            ++ fmap
+                (\obj -> oTween obj d $ oMoveBy (-hSep/2, 0))
+                [ysBoxes, ysLabels]
+
+        highlightResult d = waitOn . forkAll
+            $ oTweenColor fgColor resultColor funcDefAppend d
+            : fmap
+                (\obj -> oTweenColor xsColor resultColor obj d)
+                [funcDefXs, xsBoxes, xsLabels]
+            ++ fmap
+                (\obj -> oTweenColor ysColor resultColor obj d)
+                [funcDefYs, ysBoxes, ysLabels]
+            where
+                oTweenColor start end obj d' = oTweenContext obj d'
+                    $ withSubglyphs [0 ..] . withTweenedColor start end
+
+    wait 1
+
+    showTypeSigFuncDef 1
+
+    wait 0.5
+
+    showXs 1
+    moveXsBottomLeft 1
+    showYs 1
+    fork $ moveYsBottomRight 1
+    moveFuncDefDown 1
+
     wait 0.5
 
     traverse_
