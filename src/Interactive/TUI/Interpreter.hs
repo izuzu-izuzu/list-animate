@@ -60,7 +60,7 @@ validateListStr listStr = do
             | otherwise -> Right listStr
     where
         isLongList = isLongerThan maxListLength
-        hasLongElement = any (isLongerThan maxElementLength . show)
+        hasLongElement = any (isLongerThan maxElementLength)
 
 validateSplitListStr
     :: MonadIO m
