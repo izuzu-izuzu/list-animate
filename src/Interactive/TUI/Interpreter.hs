@@ -15,6 +15,7 @@ import Language.Haskell.Interpreter
     , parens
     , runInterpreter
     , setImports
+    , typeOf
     )
 import System.Timeout (timeout)
 import Text.Printf (printf)
@@ -35,6 +36,18 @@ runLimitedInterpreter task = liftIO $ do
         Just (Left err) -> Left err
         Just (Right []) -> result
         Just (Right _) -> Left OutputTooLongError
+
+runLimitedEval :: MonadIO m => String -> m (Either InterpreterError String)
+runLimitedEval = runLimitedInterpreter . eval
+
+runLimitedEvalWithType
+    :: MonadIO m
+    => String
+    -> m (Either InterpreterError String)
+runLimitedEvalWithType arg = runLimitedInterpreter $ do
+    expr <- eval arg
+    ty <- typeOf arg
+    pure $ printf "%v :: %v" expr ty
 
 {-|
     A list must have 7 elements or fewer, with each element having length 5 or

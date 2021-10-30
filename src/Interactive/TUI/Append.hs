@@ -8,15 +8,12 @@
 module Interactive.TUI.Append where
 
 import Control.Lens ((.~), (^.))
-import Control.Monad ((<=<))
 import Data.List (intersperse)
 import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
     , MonadIO (liftIO)
-    , eval
     , parens
-    , runStmt
     )
 import Text.Printf (printf)
 
@@ -41,66 +38,70 @@ makeForm =
         , makeNavField "(++)"
         ]
 
-loadXs :: MonadIO m => State e -> m (Either InterpreterError String)
-loadXs state = do
-    let
-        currentForm = state ^. form
-        Input{_arg1 = xs} = formState currentForm
-    runLimitedInterpreter . eval . unpack $ xs
+loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
+loadValidateXs state = do
+    let Input{_arg1 = xs} = formState $ state ^. form
+    xs' <- runLimitedEvalWithType $ unpack xs
+    either (pure . Left) validateListStr xs'
 
-validateXs :: MonadIO m => State e -> m (Either InterpreterError String)
-validateXs = either (pure . Left) validateListStr <=< loadXs
-
-loadYs :: MonadIO m => State e -> m (Either InterpreterError String)
-loadYs state = do
-    let
-        currentForm = state ^. form
-        Input{_arg2 = ys} = formState currentForm
-    runLimitedInterpreter . eval . unpack $ ys
-
-validateYs :: MonadIO m => State e -> m (Either InterpreterError String)
-validateYs = either (pure . Left) validateListStr <=< loadYs
+loadValidateYs :: MonadIO m => State e -> m (Either InterpreterError String)
+loadValidateYs state = do
+    let Input{_arg2 = ys} = formState $ state ^. form
+    ys' <- runLimitedEvalWithType $ unpack ys
+    either (pure . Left) validateListStr ys'
 
 loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
 loadResult state = do
     let
-        currentForm = state ^. form
-        Input{_arg1 = xs, _arg2 = ys} = formState currentForm
-    result <- runLimitedInterpreter $ do
-        let
-            xs' = parens . unpack $ xs
-            ys' = parens . unpack $ ys
-        eval $ printf "%v ++ %v" xs' ys'
+        Input{_arg1 = xs, _arg2 = ys} = formState $ state ^. form
+        xs' = parens $ unpack xs
+        ys' = parens $ unpack ys
+    result <- runLimitedEvalWithType $ printf "%v ++ %v" xs' ys'
     either (pure . Left) splitListStr result
 
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
+    xs <- loadValidateXs state
+    ys <- loadValidateYs state
+    result <- loadResult state
     let
-        currentForm = state ^. form
-        focus = focusGetCurrent . formFocus $ currentForm
-    xsStr <- either makeErrorMessage id <$> validateXs state
-    ysStr <- either makeErrorMessage id <$> validateYs state
-    let
+        focus = focusGetCurrent . formFocus . (^. form) $ state
+        xsStr = either makeErrorMessage id xs
+        ysStr = either makeErrorMessage id ys
+        animateResultMessage = case (xs, ys, result) of
+            (Right _, Right _, Right _) ->
+                "\n\n\
+                \Select [Animate] to view the animation."
+            (Right _, Right _, Left _) ->
+                "\n\n\
+                \Something went wrong when preparing the animation.\n\
+                \Ensure your arguments have the correct types, then try again."
+            _ -> "" :: String
+        previewResultMessage = case (xs, ys, result) of
+            (Right _, Right _, Right _) ->
+                "\n\n\
+                \Select [Animate] to view the animation."
+            _ -> "" :: String
         prompt = case focus of
             Just Arg1Field -> "xs: " <> xsStr
             Just Arg2Field -> "ys: " <> ysStr
-            Just NavPreviewField -> printf "xs: %v\n\nys: %v" xsStr ysStr
-            Just NavAnimateField -> printf "xs: %v\n\nys: %v" xsStr ysStr
+            Just NavPreviewField -> printf
+                "xs: %v\n\nys: %v%v"
+                xsStr
+                ysStr
+                previewResultMessage
+            Just NavAnimateField -> printf
+                "xs: %v\n\nys: %v%v"
+                xsStr
+                ysStr
+                animateResultMessage
             _ -> ""
     continue . (output .~ prompt) $ state
 
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
-    xs <-
-        either (pure . Left) splitListStr
-        <=< either (pure . Left) validateListStr
-        <=< loadXs
-        $ state
-    ys <-
-        either (pure . Left) splitListStr
-        <=< either (pure . Left) validateListStr
-        <=< loadYs
-        $ state
+    xs <- either (pure . Left) splitListStr =<< loadValidateXs state
+    ys <- either (pure . Left) splitListStr =<< loadValidateYs state
     result <- loadResult state
     case (xs, ys, result) of
         (Right xs', Right ys', Right _) -> do
