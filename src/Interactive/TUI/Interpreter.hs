@@ -98,10 +98,10 @@ isLongerThan :: Int -> [a] -> Bool
 isLongerThan maxLength = not . null . drop maxLength
 
 maxListLength :: Int
-maxListLength = 7
+maxListLength = 6
 
 maxElementLength :: Int
-maxElementLength = 5
+maxElementLength = 6
 
 makeErrorMessage :: InterpreterError -> String
 makeErrorMessage TimeoutError = timeoutErrorMessage
