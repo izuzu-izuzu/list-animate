@@ -2,16 +2,17 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 
-module Animations.Head (main, headAnimation) where
+module Animations.Head (main, headAnimation, headDynamicAnimation) where
 
-import Control.Lens ((%~), (.~))
+import Control.Lens ((.~))
 import Data.Foldable (traverse_)
+import Data.Text (pack)
+import Linear (V2 (V2))
 
 import Reanimate
 import Reanimate.Builtin.Documentation (docEnv)
 import Reanimate.Scene
-    ( oContext
-    , oDraw
+    ( oDraw
     , oEasing
     , oFadeOut
     , oHide
@@ -20,7 +21,7 @@ import Reanimate.Scene
     , oNew
     , oShow
     , oShowWith
-    , oTween
+    , oTween, oTranslate
     )
 
 import Utilities.List
@@ -32,117 +33,280 @@ main = reanimate headAnimation
 env :: Animation -> Animation
 env =
     docEnv
-    . addStatic (mkBackground "floralwhite")
+    . addStatic (mkBackground bgColor)
     -- . addStatic mkBackgroundGrid
     -- . addStatic mkBackgroundAxes
+
+transitions :: Animation -> Animation
+transitions = applyE (overEnding 1 fadeOutE)
+
+prepareScene :: Animation -> Animation
+prepareScene = env . transitions
+
+fgColor :: String
+fgColor = "black"
+
+bgColor :: String
+bgColor = "floralwhite"
+
+xsColor :: String
+xsColor = "red"
+
+resultColor :: String
+resultColor = "magenta"
+
+typeSigSvg :: SVG
+typeSigSvg = centerX $ latexCfgCenteredYWith
+    firaMonoCfg
+    (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    "head :: [a] -> a"
+
+funcDefSvgs :: [SVG]
+funcDefSvgs = centerGroupX $ latexCfgChunksCenteredYWith
+    firaMonoCfg
+    (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    ["head ", "xs"]
+
+xsBoxesSvgs :: [SVG]
+xsBoxesSvgs = list4Boxes xsColor
+
+xsLabelsSvgs :: [SVG]
+xsLabelsSvgs = list4Labels xsColor "x" "n"
 
 {-|
     Animation for the 'Data.List.head' function.
 -}
 headAnimation :: Animation
-headAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
+headAnimation = prepareScene $ scene $ do
+    typeSig <- oNew typeSigSvg
+    oModify typeSig $ oTranslate .~ V2 0 2.5
+
+    funcDef <- oNew $ mkGroup funcDefSvgs
+    funcDefSplit@(~[funcDefHead, funcDefXs]) <- traverse oNew funcDefSvgs
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 1.5)
+        (funcDef : funcDefSplit)
+
+    xsBoxes <- oNew $ mkGroup xsBoxesSvgs
+    xsLabels <- oNew $ mkGroup xsLabelsSvgs
+
+    headBox <- oNew $ head xsBoxesSvgs
+    headLabel <- oNew $ head xsLabelsSvgs
+
+    tailBoxes <- oNew . mkGroup . tail $ xsBoxesSvgs
+    tailLabels <- oNew . mkGroup . tail $ xsLabelsSvgs
+
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 (-0.5))
+        [xsBoxes, xsLabels, headBox, headLabel, tailBoxes, tailLabels]
+
     let
-        xsColor = "red"
-        headColor = "magenta"
+        showTypeSigFuncDef d = waitOn $ do
+            forkAll
+                [ oShowWith typeSig $ setDuration d . oDraw
+                , wait (d/4) >> oShowWith funcDef (setDuration d . oDraw)
+                ]
+            oHide funcDef
+            traverse_ oShow funcDefSplit
 
-        typeSigGlyph =
-            withDefaultBoldTextStrokeFill
-            . translate 0 2.5
-            . centerX
-            . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "head :: [a] -> a"
+        showXs d = waitOn $ do
+            waitOn $ forkAll
+                [ oTweenContext funcDefXs d $ withTweenedColor fgColor xsColor
+                , oShowWith xsBoxes $ setDuration d . oDraw
+                , wait (d/4) >> oShowWith xsLabels (setDuration d . oDraw)
+                ]
+            traverse_ oHide [xsBoxes, xsLabels]
+            traverse_ oShow [headBox, headLabel, tailBoxes, tailLabels]
 
-        funcDefGlyph =
-            withDefaultBoldTextStrokeFill
-            . translate 0 1.5
-            . centerX
-            . latexCfgCenteredYWith firaMonoCfg withDefaultTextScale
-            $ "head xs"
+        splitHead d = waitOn $ forkAll
+            [ oTween headBox d $ oMoveBy (-0.5, 0)
+            , oTween headLabel d $ oMoveBy (-0.5, 0)
+            , oTween tailBoxes d $ oMoveBy (0.5, 0)
+            , oTween tailLabels d $ oMoveBy (0.5, 0)
+            ]
 
-        xsBoxesGlyph =
-            translate 0 (-0.5) . mkGroup $ list4Boxes xsColor
-        (tailBoxesGlyph, headBoxGlyph) = splitGlyphs [0] xsBoxesGlyph
+        moveFuncDefDown d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveBy (0, -0.5))
+            funcDefSplit
 
-        xsLabelsGlyph =
-            translate 0 (-0.5) . mkGroup $ list4Labels xsColor "x" "m"
-        (tailLabelsGlyph, headLabelGlyph) =
-            splitGlyphs [0, 1] xsLabelsGlyph
+        focusHead d = waitOn $ forkAll
+            [ oHideWith tailBoxes $ setDuration (d/2) . oFadeOut
+            , oHideWith tailLabels $ setDuration (d/2) . oFadeOut
+            , oTween headLabel d $ oMoveBy (3.5, 0)
+            , oTweenContext headLabel d
+                $ \t -> aroundCenterX (scale (1 + 0.5*t))
+            , oTween headBox d $ oMoveBy (3.5, 0)
+            , oHideWith headBox $ setDuration (d*3/2) . reverseA . oDraw
+            ]
 
-    typeSig <- oNew typeSigGlyph
-
-    funcDef <- oNew funcDefGlyph
-
-    xsBoxes <- oNew xsBoxesGlyph
-    xsLabels <- oNew xsLabelsGlyph
-
-    headBox <- oNew headBoxGlyph
-    headLabel <- oNew headLabelGlyph
-
-    tailBoxes <- oNew tailBoxesGlyph
-    tailLabels <- oNew tailLabelsGlyph
+        highlightResult d = waitOn . forkAll
+            $ oTweenContext funcDefHead d
+                (withTweenedColor fgColor resultColor)
+            : fmap
+                (\obj -> oTweenContext obj d
+                    $ withSubglyphs [0 ..]
+                    . withTweenedColor xsColor resultColor)
+                [funcDefXs, headBox, headLabel, tailBoxes, tailLabels]
 
     wait 1
 
-    forkAllWithLag 0.25
-        [ oShowWith typeSig $ setDuration 1 . oDraw
-        , oShowWith funcDef $ setDuration 1 . oDraw
-        ]
+    showTypeSigFuncDef 1
 
     wait 0.5
 
-    forkAll
-        [ let f t' =
-                  withSubglyphs [4, 5]
-                      (withTweenedColor "black" xsColor t')
-          in oTween funcDef 1 $ \t -> oContext %~ (f t .)
-        , oShowWith xsBoxes $ setDuration 1 . oDraw
-        , oShowWith xsLabels $ setDuration 1 . oDraw
-        ]
-
-    traverse_ oHide [xsBoxes, xsLabels]
-    traverse_ oShow [headBox, headLabel, tailBoxes, tailLabels]
+    showXs 1
 
     wait 1
 
-    forkAll
-        [ traverse_
-              (\x ->
-                  oModify x $ oEasing .~ cubicBezierS (0, 0.985, 0.995, 1))
-              [headBox, headLabel, tailBoxes, tailLabels]
-        , oTween headBox 0.5 $ oMoveTo (-0.5, 0)
-        , oTween headLabel 0.5 $ oMoveTo (-0.5, 0)
-        , oTween tailBoxes 0.5 $ oMoveTo (0.5, 0)
-        , oTween tailLabels 0.5 $ oMoveTo (0.5, 0)
-        , traverse_
-            (\x -> oModify x $ oEasing .~ curveS 2)
-            [headBox, headLabel, tailBoxes, tailLabels]
-        ]
+    traverse_
+        (\obj -> oModify obj $ oEasing .~ softSnapOutS)
+        [headBox, headLabel, tailBoxes, tailLabels]
 
-    wait 1
+    splitHead 0.5
 
-    forkAll
-        [ let f t' =
-                  withSubglyphs [4, 5]
-                      (withTweenedColor xsColor headColor t')
-                  . withSubglyphs [0, 1, 2, 3]
-                      (withTweenedColor "black" headColor t')
-          in oTween funcDef 1 $ \t -> oContext %~ (f t .)
-        , oTween funcDef 1 $ oMoveTo (0, -0.5)
-        , oHideWith tailBoxes $ setDuration 0.5 . oFadeOut
-        , oHideWith tailLabels $ setDuration 0.5 . oFadeOut
-        , oTween headLabel 1 $ oMoveTo (3, 0)
-        , let f t' =
-                  mkGroup
-                  . map (withTweenedColor xsColor headColor t')
-                  . removeGroups
-          in oTween headBox 1 $ \t -> oContext %~ (f t .)
-        , oTween headBox 1 $ oMoveTo (3, 0)
-        , oHideWith headBox $ setDuration 1.5 . reverseA . oDraw
-        , let f t' =
-                  aroundCenter (scale (1 + 0.5 * t'))
-                  . withSubglyphs [0 ..]
-                      (withTweenedColor xsColor headColor t')
-          in oTween headLabel 1 $ \t -> oContext %~ (f t .)
+    traverse_
+        (\obj -> oModify obj $ oEasing .~ curveS 2)
+        [headBox, headLabel, tailBoxes, tailLabels]
+
+    wait 0.5
+
+    waitOn $ forkAll
+        [ moveFuncDefDown 1
+        , highlightResult 1
+        , focusHead 1
         ]
 
     wait 3
+
+dynamicBoxWidth :: Double
+dynamicBoxWidth = 1.2
+
+withDynamicBoxStrokeFill :: SVG -> SVG
+withDynamicBoxStrokeFill = withStrokeWidth 0.03 . withFillOpacity 0
+
+dynamicLabelTextScale :: Double
+dynamicLabelTextScale = 0.3
+
+makeDynamicXsBoxesSvgs :: [String] -> [SVG]
+makeDynamicXsBoxesSvgs xs = customListBoxesWith
+    (dynamicBoxWidth <$ xs)
+    (withColor xsColor . withDynamicBoxStrokeFill)
+
+makeDynamicXsLabelsSvgs :: [String] -> [SVG]
+makeDynamicXsLabelsSvgs xs = customListLabelsWith
+    (dynamicBoxWidth <$ xs)
+    ( withColor xsColor
+    . withDefaultTextStrokeFill
+    . scale dynamicLabelTextScale
+    . centerX
+    )
+    (pack <$> xs)
+
+headDynamicAnimation :: [String] -> Animation
+headDynamicAnimation xs = prepareScene $ scene $ do
+    let
+        dynamicXsBoxesSvgs = makeDynamicXsBoxesSvgs xs
+        dynamicXsLabelsSvgs = makeDynamicXsLabelsSvgs xs
+    
+    typeSig <- oNew typeSigSvg
+    oModify typeSig $ oTranslate .~ V2 0 2.5
+
+    funcDef <- oNew $ mkGroup funcDefSvgs
+    funcDefSplit@(~[funcDefHead, funcDefXs]) <- traverse oNew funcDefSvgs
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 1.5)
+        (funcDef : funcDefSplit)
+
+    xsBoxes <- oNew $ mkGroup dynamicXsBoxesSvgs
+    xsLabels <- oNew $ mkGroup dynamicXsLabelsSvgs
+
+    headBox <- oNew $ head dynamicXsBoxesSvgs
+    headLabel <- oNew $ head dynamicXsLabelsSvgs
+
+    tailBoxes <- oNew . mkGroup . tail $ dynamicXsBoxesSvgs
+    tailLabels <- oNew . mkGroup . tail $ dynamicXsLabelsSvgs
+
+    traverse_
+        (\obj -> oModify obj $ oTranslate .~ V2 0 (-0.5))
+        [xsBoxes, xsLabels, headBox, headLabel, tailBoxes, tailLabels]
+
+    let
+        showTypeSigFuncDef d = waitOn $ do
+            forkAll
+                [ oShowWith typeSig $ setDuration d . oDraw
+                , wait (d/4) >> oShowWith funcDef (setDuration d . oDraw)
+                ]
+            oHide funcDef
+            traverse_ oShow funcDefSplit
+
+        showXs d = waitOn $ do
+            waitOn $ forkAll
+                [ oTweenContext funcDefXs d $ withTweenedColor fgColor xsColor
+                , oShowWith xsBoxes $ setDuration d . oDraw
+                , wait (d/4) >> oShowWith xsLabels (setDuration d . oDraw)
+                ]
+            traverse_ oHide [xsBoxes, xsLabels]
+            traverse_ oShow [headBox, headLabel, tailBoxes, tailLabels]
+
+        splitHead d = waitOn $ forkAll
+            [ oTween headBox d $ oMoveBy (-0.5, 0)
+            , oTween headLabel d $ oMoveBy (-0.5, 0)
+            , oTween tailBoxes d $ oMoveBy (0.5, 0)
+            , oTween tailLabels d $ oMoveBy (0.5, 0)
+            ]
+
+        moveFuncDefDown d = waitOn . forkAll $ fmap
+            (\obj -> oTween obj d $ oMoveBy (0, -0.5))
+            funcDefSplit
+
+        focusHead d = waitOn $ forkAll
+            [ oHideWith tailBoxes $ setDuration (d/2) . oFadeOut
+            , oHideWith tailLabels $ setDuration (d/2) . oFadeOut
+            , oTween headLabel d $ oMoveBy (3.5, 0)
+            , oTweenContext headLabel d
+                $ \t -> aroundCenterX (scale (1 + 0.5*t))
+            , oTween headBox d $ oMoveBy (3.5, 0)
+            , oHideWith headBox $ setDuration (d*3/2) . reverseA . oDraw
+            ]
+
+        highlightResult d = waitOn $ forkAll
+            $ oTweenContext funcDefHead d
+                (withTweenedColor fgColor resultColor)
+            : fmap
+                (\obj -> oTweenContext obj d
+                    $ withSubglyphs [0 ..]
+                    . withTweenedColor xsColor resultColor)
+                [funcDefXs, headBox, headLabel, tailBoxes, tailLabels]
+
+    wait 1
+
+    showTypeSigFuncDef 1
+
+    wait 0.5
+
+    showXs 1
+
+    wait 1
+
+    traverse_
+        (\obj -> oModify obj $ oEasing .~ softSnapOutS)
+        [headBox, headLabel, tailBoxes, tailLabels]
+
+    splitHead 0.5
+
+    traverse_
+        (\obj -> oModify obj $ oEasing .~ curveS 2)
+        [headBox, headLabel, tailBoxes, tailLabels]
+
+    wait 0.5
+
+    waitOn $ forkAll
+        [ moveFuncDefDown 1
+        , highlightResult 1
+        , focusHead 1
+        ]
+
+    wait 3
+
+softSnapOutS :: Signal
+softSnapOutS = cssCubicBezierS (0.25, 0, 0, 1)
