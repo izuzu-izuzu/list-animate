@@ -49,6 +49,8 @@ import Interactive.TUI.Core
 import qualified Interactive.TUI.Head as Head
 import Interactive.TUI.Home
 import qualified Interactive.TUI.Home as Home
+import qualified Interactive.TUI.Tail as Tail
+import Interactive.TUI.Tail
 
 main :: IO ()
 main = do
@@ -79,18 +81,29 @@ makeModeForm :: Mode -> Input -> Form Input e Name
 makeModeForm Home = Home.makeForm
 makeModeForm FnAppend = Append.makeForm
 makeModeForm FnHead = Head.makeForm
+makeModeForm FnTail = Tail.makeForm
 makeModeForm _ = newForm []
 
 modePreviewEvent :: Mode -> State e -> EventM Name (Next (State e))
 modePreviewEvent Home = continue . (output .~ "<preview>")
 modePreviewEvent FnAppend = Append.previewEvent
 modePreviewEvent FnHead = Head.previewEvent
+modePreviewEvent FnTail = Tail.previewEvent
 modePreviewEvent _ = continue
 
 modeAnimateEvent :: Mode -> State e -> EventM Name (Next (State e))
 modeAnimateEvent FnAppend = Append.animateEvent
 modeAnimateEvent FnHead = Head.animateEvent
+modeAnimateEvent FnTail = Tail.animateEvent
 modeAnimateEvent _ = continue . (output .~ "<animate>")
+
+selectModeEvent :: Mode -> State e -> EventM Name (Next (State e))
+selectModeEvent m s = 
+    continue
+    . (output .~ "<prompt>")
+    . (form .~ (makeModeForm m . formState . (^. form) $ s))
+    . (mode .~ m)
+    $ s
 
 themeMap :: AttrMap
 themeMap = attrMap defAttr
@@ -119,18 +132,9 @@ appEvent state (KEnterEvent []) = do
         NavQuitField -> halt state
         NavPreviewField -> modePreviewEvent (state ^. mode) state
         NavAnimateField -> modeAnimateEvent (state ^. mode) state
-        SelectFnAppendField ->
-            continue
-            . (output .~ "<prompt>")
-            . (form .~ (makeModeForm FnAppend . formState . (^. form) $ state))
-            . (mode .~ FnAppend)
-            $ state
-        SelectFnHeadField ->
-            continue
-            . (output .~ "<prompt>")
-            . (form .~ (makeModeForm FnHead . formState . (^. form) $ state))
-            . (mode .~ FnHead)
-            $ state
+        SelectFnAppendField -> selectModeEvent FnAppend state
+        SelectFnHeadField -> selectModeEvent FnHead state
+        SelectFnTailField -> selectModeEvent FnTail state
         _ -> continue
             =<< handleEventLensed state form handleFormEvent (KEnterEvent [])
 appEvent state event =

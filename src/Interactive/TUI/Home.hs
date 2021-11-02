@@ -20,6 +20,7 @@ makeForm =
             emptyInputField
             [ ((), SelectFnAppendField, "(++) :: [a] -> [a] -> [a]")
             , ((), SelectFnHeadField, "head :: [a] -> a")
+            , ((), SelectFnTailField, "tail :: [a] -> [a]")
             ]
         ]
 
