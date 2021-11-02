@@ -4,7 +4,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Interactive.TUI.MultiApp where
+module Misc.MultiApp where
 
 import Control.Lens (makeLenses, (^.), (%~))
 import qualified Graphics.Vty as V

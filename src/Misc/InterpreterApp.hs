@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NumericUnderscores #-}
 
-module Interactive.TUI.InterpreterApp where
+module Misc.InterpreterApp where
 
 import Data.Text (Text, unpack)
 import Text.Pretty.Simple (pPrint)
