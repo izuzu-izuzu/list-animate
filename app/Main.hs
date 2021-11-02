@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import qualified Interactive.TUI.Main as TUI
 
 main :: IO ()
-main = someFunc
+main = TUI.main
