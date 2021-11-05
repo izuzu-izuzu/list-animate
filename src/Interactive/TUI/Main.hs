@@ -26,7 +26,7 @@ import Graphics.Vty
     , red
     , standardIOConfig
     , white
-    , yellow
+    , yellow, cyan, brightCyan, brightRed, brightYellow, withStyle, bold, italic, magenta, brightMagenta
     )
 import qualified Graphics.Vty as Vty
 import Text.Pretty.Simple (pPrint)
@@ -39,7 +39,7 @@ import Brick.Forms
     , handleFormEvent
     , invalidFormInputAttr
     , newForm
-    , renderForm
+    , renderForm, updateFormState
     )
 import Brick.Widgets.Edit (editAttr, editFocusedAttr)
 import Brick.Widgets.List (listAttr, listSelectedAttr)
@@ -51,6 +51,10 @@ import Interactive.TUI.Home
 import qualified Interactive.TUI.Home as Home
 import qualified Interactive.TUI.Tail as Tail
 import Interactive.TUI.Tail
+import Brick.Widgets.Center (hCenter, vCenter)
+import Brick.Widgets.Border (borderWithLabel)
+import Utilities.Main ((-<))
+import Brick.Widgets.Border.Style (borderStyleFromChar, unicodeRounded)
 
 main :: IO ()
 main = do
@@ -72,10 +76,31 @@ main = do
     putStrLn "App ends here."
 
 drawUI :: State e -> [Widget Name]
-drawUI s = [renderForm f <=> str o]
+drawUI State{_mode = m, _form = f, _note = n, _output = o} = [ui]
     where
-        f = s ^. form
-        o = s ^. output
+        ui =
+            vCenter
+            . foldl1 (<=>)
+            . fmap hCenter
+            $ [formWidget, noteWidget, outputWidget]
+        formWidget = borderWithLabel
+            (padLeftRight 1 . withAttr "bold" . str $ makeModeTitle m)
+            (hCenter $ renderForm f)
+        noteWidget = borderWithLabel
+            (padLeftRight 1 . withAttr "bold" . str $ "Note")
+            (hCenter n)
+        outputWidget = case m of
+            Home -> emptyWidget
+            _ -> borderWithLabel
+                (padLeftRight 1 . withAttr "bold" . str $ "Preview")
+                (hCenter o)
+
+makeModeTitle :: Mode -> String
+makeModeTitle Home = Home.makeTitle
+makeModeTitle FnAppend = Append.makeTitle
+makeModeTitle FnHead = Head.makeTitle
+makeModeTitle FnTail = Tail.makeTitle
+makeModeTitle _ = ""
 
 makeModeForm :: Mode -> Input -> Form Input e Name
 makeModeForm Home = Home.makeForm
@@ -84,8 +109,18 @@ makeModeForm FnHead = Head.makeForm
 makeModeForm FnTail = Tail.makeForm
 makeModeForm _ = newForm []
 
+makeModeNote :: Mode -> Widget Name
+makeModeNote Home = Home.makeNote
+makeModeNote FnAppend = Append.makeNote
+makeModeNote FnHead = Head.makeNote
+makeModeNote _ = emptyWidget
+
+makeDefaultOutput :: Widget Name
+makeDefaultOutput = strWrap
+    "Select [Preview] to evaluate and view all arguments."
+
 modePreviewEvent :: Mode -> State e -> EventM Name (Next (State e))
-modePreviewEvent Home = continue . (output .~ "<preview>")
+modePreviewEvent Home = continue . (output .~ str "<preview>")
 modePreviewEvent FnAppend = Append.previewEvent
 modePreviewEvent FnHead = Head.previewEvent
 modePreviewEvent FnTail = Tail.previewEvent
@@ -95,24 +130,28 @@ modeAnimateEvent :: Mode -> State e -> EventM Name (Next (State e))
 modeAnimateEvent FnAppend = Append.animateEvent
 modeAnimateEvent FnHead = Head.animateEvent
 modeAnimateEvent FnTail = Tail.animateEvent
-modeAnimateEvent _ = continue . (output .~ "<animate>")
+modeAnimateEvent _ = continue . (output .~ str "<animate>")
 
 selectModeEvent :: Mode -> State e -> EventM Name (Next (State e))
-selectModeEvent m s = 
+selectModeEvent m =
     continue
-    . (output .~ "<prompt>")
-    . (form .~ (makeModeForm m . formState . (^. form) $ s))
+    . (output .~ makeDefaultOutput)
+    . (note .~ makeModeNote m)
+    . (form .~ makeModeForm m initialInput)
     . (mode .~ m)
-    $ s
 
 themeMap :: AttrMap
 themeMap = attrMap defAttr
     [ (editAttr, white `on` brightBlack)
     , (editFocusedAttr, black `on` yellow)
     , (invalidFormInputAttr, white `on` red)
-    , (focusedFormInputAttr, black `on` yellow)
-    , (listAttr, bg blue)
-    , (listSelectedAttr, white `on` green)
+    , (focusedFormInputAttr, black `on` cyan)
+    , (attrName "actionAvailable", fg cyan)
+    , (attrName "error", fg red)
+    , (attrName "fgRed", fg red)
+    , (attrName "fgYellow", fg yellow)
+    , (attrName "fgMagenta", fg brightMagenta)
+    , (attrName "bold", withStyle defAttr bold)
     ]
 
 appEvent :: State e -> BrickEvent Name e -> EventM Name (Next (State e))
@@ -153,6 +192,9 @@ initialState :: State e
 initialState = State
    { _mode = Home
    , _form = makeModeForm Home initialInput
-   , _output = "<prompt>"
+   , _note = makeModeNote Home
+   , _output = emptyWidget
    }
-   where initialInput = Input "" "" "" "" "" ()
+
+initialInput :: Input
+initialInput = Input "" "" "" "" "" ()
