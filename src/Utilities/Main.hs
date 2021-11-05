@@ -63,7 +63,7 @@ module Utilities.Main
 import Codec.Picture (PixelRGBA8)
 import Control.Lens ((%~))
 import Data.List (find, intersperse)
-import Data.Text (Text)
+import Data.Text (Text, replace)
 import Graphics.SvgTree (Texture (ColorRef))
 import Linear (V2 (V2), lerp)
 
@@ -249,6 +249,7 @@ latexCfgCenteredYWith config transformation = mkGroup
     . latexCfg config
     . (<> "\\makebox[0em]{$\\biggr\\rvert$}")
     . ("\\makebox[0em]{$\\biggl\\lvert$}" <>)
+    . replace "'" "{\\textquotesingle}"
 
 {-|
     Similar to 'latexCfgChunks', but the resulting text glyphs are also
@@ -267,6 +268,7 @@ latexCfgChunksCenteredYWith config transformation =
     . latexCfgChunks config
     . (<> ["\\makebox[0em]{$\\biggr\\rvert$}"])
     . (["\\makebox[0em]{$\\biggl\\lvert$}"] <>)
+    . fmap (replace "'" "{\\textquotesingle}")
 
 {-|
     'fork' a scene and add a time delay.
