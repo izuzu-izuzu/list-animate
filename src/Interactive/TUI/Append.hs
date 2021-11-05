@@ -28,15 +28,31 @@ import Animations.Append (appendDynamicAnimation)
 import Interactive.TUI.Core
 import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
+import Brick.Widgets.Center (hCenter)
+
+makeTitle :: String
+makeTitle = "(++) :: [a] -> [a] -> [a]"
+
+funcDef :: String
+funcDef = "xs ++ ys"
 
 makeForm :: Input -> Form Input e Name
 makeForm =
-    setFormConcat (vBox . intersperse (vLimit 1 $ fill '·'))
+    setFormConcat (vBox . (funcDefWidget :))
     . newForm
-        [ (str "xs: " <+>) @@= editTextField arg1 Arg1Field (Just 3)
-        , (str "ys: " <+>) @@= editTextField arg2 Arg2Field (Just 3)
-        , makeNavField "(++)"
+        [ (str "xs: " <+>) @@= editTextField arg1 Arg1Field (Just 2)
+        , (str "ys: " <+>) @@= editTextField arg2 Arg2Field (Just 2)
+        , makeNavField
         ]
+    where funcDefWidget = hCenter $ str funcDef
+
+makeNote :: Widget n
+makeNote = strWrap $ printf
+    "Ensure the lists xs and ys each contain between 1 and %v elements, and \
+    \that each element can be shown in no more than %v characters.\n\
+    \(Note that Strings are shown with quotation marks.)"
+    maxListLength
+    maxElementLength
 
 loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateXs state = do
@@ -50,52 +66,51 @@ loadValidateYs state = do
     ys' <- runLimitedEvalWithType $ unpack ys
     either (pure . Left) validateListStr ys'
 
-loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
-loadResult state = do
+loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
+loadRawResult state = do
     let
         Input{_arg1 = xs, _arg2 = ys} = formState $ state ^. form
         xs' = parens $ unpack xs
         ys' = parens $ unpack ys
-    result <- runLimitedEvalWithType $ printf "%v ++ %v" xs' ys'
-    either (pure . Left) splitListStr result
+    runLimitedEvalWithType $ printf "%v ++ %v" xs' ys'
+    
+loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
+loadResult state = do
+    rawResult <- loadRawResult state
+    either (pure . Left) splitListStr rawResult
 
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
     ys <- loadValidateYs state
+    rawResult <- loadRawResult state
     result <- loadResult state
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
         xsStr = either makeErrorMessage id xs
         ysStr = either makeErrorMessage id ys
-        animateResultMessage = case (xs, ys, result) of
-            (Right _, Right _, Right _) ->
-                "\n\n\
-                \Select [Animate] to view the animation."
-            (Right _, Right _, Left _) ->
-                "\n\n\
-                \Something went wrong when preparing the animation.\n\
-                \Ensure your arguments have the correct types, then try again."
-            _ -> "" :: String
-        previewResultMessage = case (xs, ys, result) of
-            (Right _, Right _, Right _) ->
-                "\n\n\
-                \Select [Animate] to view the animation."
-            _ -> "" :: String
+        resultStr = either makeErrorMessage id rawResult
+        animateResultPrompt =
+            withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
+        animatePrompt = case (xs, ys, result) of
+            (Right _, Right _, Right _) -> animateResultPrompt
+            (Right _, Right _, Left _) -> animateErrorPrompt
+            _ -> emptyWidget
+        previewPrompt = case (xs, ys, result) of
+            (Right _, Right _, Right _) -> animateAvailablePrompt
+            _ -> emptyWidget
         prompt = case focus of
-            Just Arg1Field -> "xs: " <> xsStr
-            Just Arg2Field -> "ys: " <> ysStr
-            Just NavPreviewField -> printf
-                "xs: %v\n\nys: %v%v"
-                xsStr
-                ysStr
-                previewResultMessage
-            Just NavAnimateField -> printf
-                "xs: %v\n\nys: %v%v"
-                xsStr
-                ysStr
-                animateResultMessage
-            _ -> ""
+            Just Arg1Field -> str "xs: " <+> strWrap xsStr
+            Just Arg2Field -> str "ys: " <+> strWrap ysStr
+            Just NavPreviewField ->
+                (str "xs: " <+> strWrap xsStr)
+                <=> (str "ys: " <+> strWrap ysStr)
+                <=> previewPrompt
+            Just NavAnimateField ->
+                (str "xs: " <+> strWrap xsStr)
+                <=> (str "ys: " <+> strWrap ysStr)
+                <=> animatePrompt
+            _ -> emptyWidget
     continue . (output .~ prompt) $ state
 
 animateEvent :: State e -> EventM Name (Next (State e))
@@ -104,7 +119,18 @@ animateEvent state = do
     ys <- either (pure . Left) splitListStr =<< loadValidateYs state
     result <- loadResult state
     case (xs, ys, result) of
-        (Right xs', Right ys', Right _) -> do
+        (Right xs', Right ys', Right _) ->
             liftIO . reanimate $ appendDynamicAnimation xs' ys'
-            homeEvent state
-        _ -> previewEvent state
+        _ -> pure ()
+    previewEvent state
+
+animateAvailablePrompt :: Widget Name
+animateAvailablePrompt = withAttr "actionAvailable"
+    $ strWrap "Select [Animate] to view the animation."
+
+animateErrorPrompt :: Widget Name
+animateErrorPrompt = withAttr "error"
+    $ strWrap
+        "Something went wrong when preparing the animation.\n\
+        \Ensure your arguments have the correct types, then try again."
+
