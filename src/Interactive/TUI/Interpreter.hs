@@ -50,7 +50,7 @@ runLimitedEvalWithType arg = runLimitedInterpreter $ do
     pure $ printf "%v :: %v" expr ty
 
 {-|
-    A list must have 7 elements or fewer, with each element having length 5 or
+    A list must have 6 elements or fewer, with each element having length 6 or
     lower.
 -}
 splitListStr :: MonadIO m => String -> m (Either InterpreterError [String])
@@ -119,22 +119,24 @@ noPreviewAvailableMessage =
 compileErrorMessage :: String
 compileErrorMessage =
     "Invalid expression.\n\
-    \Ensure your expression has no syntax error, then try again."
+    \Perhaps your expression contains a syntax error or ambiguous type."
 
 timeoutErrorMessage :: String
 timeoutErrorMessage =
     "Timed out.\n\
     \Perhaps you entered an infinite list or an infinitely recursive \
-    \function definition."
+    \expression."
 
 outputTooLongErrorMessage :: String
-outputTooLongErrorMessage =
+outputTooLongErrorMessage = printf
     "Output too long to be displayed.\n\
-    \Perhaps you entered an infinite list or an infinitely recursive \
-    \function definition."
-
+    \The maximum output length that can be displayed is %v characters."
+    maxOutputLength
+    
 emptyListErrorMessage :: String
-emptyListErrorMessage = "Empty list."
+emptyListErrorMessage =
+    "Empty list.\n\
+    \Ensure the list contains at least one element."
 
 listTooLongErrorMessage :: String
 listTooLongErrorMessage = printf
@@ -145,8 +147,7 @@ listTooLongErrorMessage = printf
 elementTooLongErrorMessage :: String
 elementTooLongErrorMessage = printf
     "Found element too long to be animated.\n\
-    \Ensure all elements can be displayed in no more than %v characters.\n\
-    \(Note: A string element like \"Hello\" counts as 7 characters, not 5.)"
+    \Ensure all elements can be displayed in no more than %v characters."
     maxElementLength
 
 maxTimeout :: Int
