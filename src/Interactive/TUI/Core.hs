@@ -13,9 +13,10 @@ import Graphics.Vty
     , Key (KChar, KEnter, KEsc)
     , Modifier
     )
-    
+
 import Brick
 import Brick.Forms (Form, FormFieldState, radioCustomField, setFieldConcat)
+import Brick.Widgets.Center (vCenter, hCenter)
 
 data Input = Input
     { _arg1 :: Text
@@ -58,7 +59,8 @@ data Mode
 data State e = State
     { _mode :: Mode
     , _form :: Form Input e Name
-    , _output :: String
+    , _note :: Widget Name
+    , _output :: Widget Name
     }
 
 pattern ResizeEvent :: BrickEvent n e
@@ -77,21 +79,27 @@ makeLenses ''Input
 makeLenses ''State
 
 navFieldNames :: [Name]
-navFieldNames = [NavCurrentField .. NavAnimateField]
+navFieldNames =
+    [ NavCurrentField 
+    , NavHomeField
+    , NavQuitField
+    , NavPreviewField
+    , NavAnimateField
+    ]
 
-makeNavField :: Text -> Input -> FormFieldState Input e Name
-makeNavField currentLabel =
-    setFieldConcat (\(x:xs) -> x <+> fill ' ' <+> hBox xs)
+makeNavField :: Input -> FormFieldState Input e Name
+makeNavField =
+    setFieldConcat
+        (\[x1, x2, x3, x4] -> x1 <+> x2 <+> vLimit 1 (fill ' ') <+> x3 <+> x4)
     . radioCustomField
         ' '
         ' '
         ' '
         emptyInputField
-        [ ((), NavCurrentField, "*" <> currentLabel <> "*" <> rPad)
+        [ ((), NavPreviewField, "[Preview]" <> rPad)
+        , ((), NavAnimateField, "[Animate]" <> rPad)
         , ((), NavHomeField, "[Home]" <> rPad)
         , ((), NavQuitField, "[Quit]" <> rPad)
-        , ((), NavPreviewField, "[Preview]" <> rPad)
-        , ((), NavAnimateField, "[Animate]" <> rPad)
         ]
     where rPad = "    "
 
