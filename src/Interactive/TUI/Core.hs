@@ -6,8 +6,8 @@
 
 module Interactive.TUI.Core where
 
-import Control.Lens (makeLenses)
-import Data.Text (Text)
+import Control.Lens (makeLenses, (%~), Lens')
+import Data.Text (Text, unpack, pack)
 import Graphics.Vty
     ( Event (EvKey, EvResize)
     , Key (KChar, KEnter, KEsc)
@@ -17,6 +17,7 @@ import Graphics.Vty
 import Brick
 import Brick.Forms (Form, FormFieldState, radioCustomField, setFieldConcat)
 import Brick.Widgets.Center (vCenter, hCenter)
+import Language.Haskell.Interpreter (parens)
 
 data Input = Input
     { _arg1 :: Text
@@ -80,7 +81,7 @@ makeLenses ''State
 
 navFieldNames :: [Name]
 navFieldNames =
-    [ NavCurrentField 
+    [ NavCurrentField
     , NavHomeField
     , NavQuitField
     , NavPreviewField
@@ -106,3 +107,10 @@ makeNavField =
 navByFrom :: NavChoice -> Mode -> Mode
 navByFrom NavHome _ = Home
 navByFrom _ m = m
+
+parensInput :: Input -> Input
+parensInput =
+    foldl1 (.)
+    . fmap (%~ parensText)
+    $ [arg1, arg2, arg3, arg4, arg5]
+    where parensText = pack . parens . unpack

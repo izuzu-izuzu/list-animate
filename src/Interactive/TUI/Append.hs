@@ -56,27 +56,27 @@ makeNote = strWrap $ printf
 
 loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateXs state = do
-    let Input{_arg1 = xs} = formState $ state ^. form
-    xs' <- runLimitedEvalWithType $ unpack xs
-    either (pure . Left) validateListStr xs'
+    let Input{_arg1} = parensInput . formState . (^. form) $ state
+    xs <- runLimitedEvalWithType $ unpack _arg1
+    either (pure . Left) validateListStr xs
 
 loadValidateYs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateYs state = do
-    let Input{_arg2 = ys} = formState $ state ^. form
-    ys' <- runLimitedEvalWithType $ unpack ys
-    either (pure . Left) validateListStr ys'
+    let Input{_arg2} = parensInput . formState . (^. form) $ state
+    ys <- runLimitedEvalWithType $ unpack _arg2
+    either (pure . Left) validateListStr ys
 
 loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadRawResult state = do
     let
-        Input{_arg1 = xs, _arg2 = ys} = formState $ state ^. form
-        xs' = parens $ unpack xs
-        ys' = parens $ unpack ys
-    runLimitedEvalWithType $ printf "%v ++ %v" xs' ys'
-    
+        Input{_arg1, _arg2} = parensInput . formState . (^. form) $ state
+        xs = parens $ unpack _arg1
+        ys = parens $ unpack _arg2
+    runLimitedEvalWithType $ printf "%v ++ %v" xs ys
+
 loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
 loadResult state = do
-    rawResult <- loadRawResult state
+    rawResult <- fmap parens <$> loadRawResult state
     either (pure . Left) splitListStr rawResult
 
 previewEvent :: State e -> EventM Name (Next (State e))

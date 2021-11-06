@@ -1,10 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Interactive.TUI.Tail where
 
-import Control.Lens ((.~), (^.))
+import Control.Lens ((.~), (^.), view)
 import Control.Monad ((<=<))
 import Data.List (intersperse)
 import Data.Text (unpack)
@@ -55,14 +56,14 @@ makeNote = strWrap $ printf
 
 loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateXs state = do
-    let Input{_arg1 = xs} = formState $ state ^. form
-    xs' <- runLimitedEvalWithType $ unpack xs
-    either (pure . Left) validateListStr xs'
+    let Input{_arg1} = parensInput . formState . (^. form) $ state
+    xs <- runLimitedEvalWithType $ unpack _arg1
+    either (pure . Left) validateListStr xs
 
 loadResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadResult state = do
-    xs' <- loadValidateXs state
-    either (pure . Left) (runLimitedEvalWithType . printf "tail %v") xs'
+    xs <- fmap parens <$> loadValidateXs state
+    either (pure . Left) (runLimitedEvalWithType . printf "tail %v") xs
 
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
