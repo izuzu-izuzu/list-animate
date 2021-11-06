@@ -4,6 +4,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Interactive.TUI.Append where
 
@@ -13,7 +14,7 @@ import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
     , MonadIO (liftIO)
-    , parens
+    , parens, setImports, typeOf
     )
 import Text.Printf (printf)
 
@@ -29,9 +30,13 @@ import Interactive.TUI.Core
 import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
 import Brick.Widgets.Center (hCenter)
+import Text.RawString.QQ (r)
 
 makeTitle :: String
 makeTitle = "(++) :: [a] -> [a] -> [a]"
+
+funcName :: String
+funcName = "(++)"
 
 funcDef :: String
 funcDef = "xs ++ ys"
@@ -66,6 +71,34 @@ loadValidateYs state = do
     ys <- runLimitedEvalWithType $ unpack _arg2
     either (pure . Left) validateListStr ys
 
+resultTypeExpr :: String -> String -> String
+resultTypeExpr = printf
+    [r|
+    let
+        proxy :: t -> Proxy t
+        proxy _ = Proxy
+        appendProxy :: Proxy [a] -> Proxy [a] -> [a] -> [a] -> [a]
+        appendProxy proxyXs proxyYs = (++)
+    in
+        appendProxy (proxy %v) (proxy %v)
+    |]
+
+loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
+loadFuncType state = do
+    xs <- fmap parens <$> loadValidateXs state
+    ys <- fmap parens <$> loadValidateYs state
+    case (xs, ys) of
+        (Right xs', Right ys') -> runLimitedInterpreter $ do
+            setImports
+                [ "Prelude"
+                , "Data.List"
+                , "Text.Show.Functions"
+                , "Data.Proxy"
+                ]
+            typeOf $ resultTypeExpr xs' ys'
+        (Left xsErr, _) -> pure $ Left xsErr
+        (_, Left ysErr) -> pure $ Left ysErr
+
 loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadRawResult state = do
     let
@@ -83,13 +116,17 @@ previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
     ys <- loadValidateYs state
+    funcType <- loadFuncType state
     rawResult <- loadRawResult state
     result <- loadResult state
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
         xsStr = either makeErrorMessage id xs
         ysStr = either makeErrorMessage id ys
+        funcTypeStr = either show id funcType
         resultStr = either makeErrorMessage id rawResult
+        animateFuncTypePrompt =
+            withAttr "bold" $ strWrap (printf "%v :: %v" funcName funcTypeStr)
         animateResultPrompt =
             withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
         animatePrompt = case (xs, ys, result) of
@@ -97,7 +134,9 @@ previewEvent state = do
             (Right _, Right _, Left _) -> animateErrorPrompt
             _ -> emptyWidget
         previewPrompt = case (xs, ys, result) of
-            (Right _, Right _, Right _) -> animateAvailablePrompt
+            (Right _, Right _, Right _) ->
+                animateFuncTypePrompt
+                <=> animateAvailablePrompt
             _ -> emptyWidget
         prompt = case focus of
             Just Arg1Field -> str "xs: " <+> strWrap xsStr
