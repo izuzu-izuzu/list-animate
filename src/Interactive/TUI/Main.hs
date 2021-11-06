@@ -113,6 +113,7 @@ makeModeNote :: Mode -> Widget Name
 makeModeNote Home = Home.makeNote
 makeModeNote FnAppend = Append.makeNote
 makeModeNote FnHead = Head.makeNote
+makeModeNote FnTail = Tail.makeNote
 makeModeNote _ = emptyWidget
 
 makeDefaultOutput :: Widget Name
@@ -120,11 +121,10 @@ makeDefaultOutput = strWrap
     "Select [Preview] to evaluate and view all arguments."
 
 modePreviewEvent :: Mode -> State e -> EventM Name (Next (State e))
-modePreviewEvent Home = continue . (output .~ str "<preview>")
 modePreviewEvent FnAppend = Append.previewEvent
 modePreviewEvent FnHead = Head.previewEvent
 modePreviewEvent FnTail = Tail.previewEvent
-modePreviewEvent _ = continue
+modePreviewEvent _ = continue . (output .~ str "<preview>")
 
 modeAnimateEvent :: Mode -> State e -> EventM Name (Next (State e))
 modeAnimateEvent FnAppend = Append.animateEvent
