@@ -250,6 +250,7 @@ latexCfgCenteredYWith config transformation = mkGroup
     . (<> "\\makebox[0em]{$\\biggr\\rvert$}")
     . ("\\makebox[0em]{$\\biggl\\lvert$}" <>)
     . replace "'" "{\\textquotesingle}"
+    . replace " " "{\\ }"
 
 {-|
     Similar to 'latexCfgChunks', but the resulting text glyphs are also
@@ -268,7 +269,10 @@ latexCfgChunksCenteredYWith config transformation =
     . latexCfgChunks config
     . (<> ["\\makebox[0em]{$\\biggr\\rvert$}"])
     . (["\\makebox[0em]{$\\biggl\\lvert$}"] <>)
-    . fmap (replace "'" "{\\textquotesingle}")
+    . fmap
+        ( replace "'" "{\\textquotesingle}"
+        . replace " " "{\\ }"
+        )
 
 {-|
     'fork' a scene and add a time delay.
