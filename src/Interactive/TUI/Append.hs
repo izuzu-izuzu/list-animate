@@ -116,17 +116,13 @@ previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
     ys <- loadValidateYs state
-    funcType <- loadFuncType state
     rawResult <- loadRawResult state
     result <- loadResult state
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
         xsStr = either makeErrorMessage id xs
         ysStr = either makeErrorMessage id ys
-        funcTypeStr = either show id funcType
         resultStr = either makeErrorMessage id rawResult
-        animateFuncTypePrompt =
-            withAttr "bold" $ strWrap (printf "%v :: %v" funcName funcTypeStr)
         animateResultPrompt =
             withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
         animatePrompt = case (xs, ys, result) of
@@ -135,8 +131,7 @@ previewEvent state = do
             _ -> emptyWidget
         previewPrompt = case (xs, ys, result) of
             (Right _, Right _, Right _) ->
-                animateFuncTypePrompt
-                <=> animateAvailablePrompt
+                animateAvailablePrompt
             _ -> emptyWidget
         prompt = case focus of
             Just Arg1Field -> str "xs: " <+> strWrap xsStr
@@ -156,10 +151,11 @@ animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
     xs <- either (pure . Left) splitListStr =<< loadValidateXs state
     ys <- either (pure . Left) splitListStr =<< loadValidateYs state
+    funcType <- loadFuncType state
     result <- loadResult state
-    case (xs, ys, result) of
-        (Right xs', Right ys', Right _) ->
-            liftIO . reanimate $ appendDynamicAnimation xs' ys'
+    case (xs, ys, funcType, result) of
+        (Right xs', Right ys', Right funcType', Right _) ->
+            liftIO . reanimate $ appendDynamicAnimation funcType' xs' ys'
         _ -> pure ()
     previewEvent state
 

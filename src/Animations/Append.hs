@@ -6,7 +6,7 @@ module Animations.Append (main, appendAnimation, appendDynamicAnimation) where
 
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
-import Data.Text (pack)
+import Data.Text (pack, replace)
 import Linear (V2 (V2))
 
 import Reanimate
@@ -40,7 +40,10 @@ transitions :: Animation -> Animation
 transitions = applyE (overEnding 1 fadeOutE)
 
 prepareScene :: Animation -> Animation
-prepareScene = env . transitions
+prepareScene =
+    env
+    . transitions
+    . fitAnimationToSize (screenWidth - 1, screenHeight - 1)
 
 fgColor :: String
 fgColor = "black"
@@ -180,13 +183,23 @@ appendAnimation = prepareScene $ scene $ do
     wait 3
 
 dynamicBoxWidth :: Double
-dynamicBoxWidth = 1.2
+dynamicBoxWidth = 1.5
 
 withDynamicBoxStrokeFill :: SVG -> SVG
-withDynamicBoxStrokeFill = withStrokeWidth 0.03 . withFillOpacity 0
+withDynamicBoxStrokeFill = withStrokeWidth 0.05 . withFillOpacity 0
 
 dynamicLabelTextScale :: Double
-dynamicLabelTextScale = 0.3
+dynamicLabelTextScale = 0.4
+
+makeDynamicTypeSigSvg :: String -> SVG
+makeDynamicTypeSigSvg =
+    centerX
+    . latexCfgCenteredYWith
+        firaMonoCfg
+        (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    . replace " " "~"
+    . pack
+    . ("(++) :: " <>)
 
 makeDynamicXsBoxesSvgs :: [String] -> [SVG]
 makeDynamicXsBoxesSvgs xs = customListBoxesWith
@@ -218,9 +231,9 @@ makeDynamicYsLabelsSvgs ys = customListLabelsWith
     )
     (pack <$> ys)
 
-appendDynamicAnimation :: [String] -> [String] -> Animation
-appendDynamicAnimation xs ys = prepareScene $ scene $ do
-    typeSig <- oNew typeSigSvg
+appendDynamicAnimation :: String -> [String] -> [String] -> Animation
+appendDynamicAnimation typeSigStr xs ys = prepareScene $ scene $ do
+    typeSig <- oNew $ makeDynamicTypeSigSvg typeSigStr
     oModify typeSig $ oTranslate .~ V2 0 2.5
 
     funcDef <- oNew $ mkGroup funcDefSvgs
@@ -237,7 +250,7 @@ appendDynamicAnimation xs ys = prepareScene $ scene $ do
     ysLabels <- oNew . mkGroup . makeDynamicYsLabelsSvgs $ ys
 
     let
-        hSep = 1
+        hSep = dynamicBoxWidth
         ~[xsStartPosX, _, ysStartPosX] = distribute1D
             [ sum (dynamicBoxWidth <$ xs)
             , hSep
@@ -320,3 +333,15 @@ appendDynamicAnimation xs ys = prepareScene $ scene $ do
     highlightResult 0
 
     wait 3
+
+fitAnimationToSize :: (Double, Double) -> Animation -> Animation
+fitAnimationToSize (width, height) animation = mapA (scale factor) animation
+    where
+        dur = duration animation
+        sampleFrequency = 20
+        sampleFrames =
+            (`frameAt` animation) . (dur *) <$> [0, 1/sampleFrequency .. 1]
+        frameBoundingBoxes = boundingBox <$> sampleFrames
+        maxFrameWidth = maximum $ (\(_, _, w, _) -> w) <$> frameBoundingBoxes
+        maxFrameHeight = maximum $ (\(_, _, _, h) -> h) <$> frameBoundingBoxes
+        factor = minimum [1, width/maxFrameWidth, height/maxFrameHeight]
