@@ -4,9 +4,9 @@
 
 module Animations.Head (main, headAnimation, headDynamicAnimation) where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (+~))
 import Data.Foldable (traverse_)
-import Data.Text (pack)
+import Data.Text (pack, replace)
 import Linear (V2 (V2))
 
 import Reanimate
@@ -21,7 +21,7 @@ import Reanimate.Scene
     , oNew
     , oShow
     , oShowWith
-    , oTween, oTranslate
+    , oTween, oTranslate, Object
     )
 
 import Utilities.List
@@ -179,13 +179,23 @@ headAnimation = prepareScene $ scene $ do
     wait 3
 
 dynamicBoxWidth :: Double
-dynamicBoxWidth = 1.2
+dynamicBoxWidth = 1.5
 
 withDynamicBoxStrokeFill :: SVG -> SVG
-withDynamicBoxStrokeFill = withStrokeWidth 0.03 . withFillOpacity 0
+withDynamicBoxStrokeFill = withStrokeWidth 0.05 . withFillOpacity 0
 
 dynamicLabelTextScale :: Double
-dynamicLabelTextScale = 0.3
+dynamicLabelTextScale = 0.4
+
+makeDynamicTypeSigSvg :: String -> SVG
+makeDynamicTypeSigSvg =
+    centerX
+    . latexCfgCenteredYWith
+        firaMonoCfg
+        (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    . replace " " "~"
+    . pack
+    . ("head :: " <>)
 
 makeDynamicXsBoxesSvgs :: [String] -> [SVG]
 makeDynamicXsBoxesSvgs xs = customListBoxesWith
@@ -202,35 +212,37 @@ makeDynamicXsLabelsSvgs xs = customListLabelsWith
     )
     (pack <$> xs)
 
-headDynamicAnimation :: [String] -> Animation
-headDynamicAnimation xs = prepareScene $ scene $ do
+headDynamicAnimation :: String -> [String] -> Animation
+headDynamicAnimation typeSigStr xs = prepareScene $ scene $ do
     let
+        dynamicTypeSigSvg = makeDynamicTypeSigSvg typeSigStr
         dynamicXsBoxesSvgs = makeDynamicXsBoxesSvgs xs
         dynamicXsLabelsSvgs = makeDynamicXsLabelsSvgs xs
     
-    typeSig <- oNew typeSigSvg
+    typeSig <- oNewWithSvgLocation dynamicTypeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
 
     funcDef <- oNew $ mkGroup funcDefSvgs
     funcDefSplit@(~[funcDefHead, funcDefXs]) <- traverse oNew funcDefSvgs
     traverse_
-        (\obj -> oModify obj $ oTranslate .~ V2 0 1.5)
+        (\obj -> oModify obj $ oTranslate +~ V2 0 1.5)
         (funcDef : funcDefSplit)
 
     xsBoxes <- oNew $ mkGroup dynamicXsBoxesSvgs
     xsLabels <- oNew $ mkGroup dynamicXsLabelsSvgs
 
-    headBox <- oNew $ head dynamicXsBoxesSvgs
-    headLabel <- oNew $ head dynamicXsLabelsSvgs
+    headBox <- oNewWithSvgLocation $ head dynamicXsBoxesSvgs
+    headLabel <- oNewWithSvgLocation $ head dynamicXsLabelsSvgs
 
-    tailBoxes <- oNew . mkGroup . tail $ dynamicXsBoxesSvgs
-    tailLabels <- oNew . mkGroup . tail $ dynamicXsLabelsSvgs
+    tailBoxes <- oNewWithSvgLocation . mkGroup . tail $ dynamicXsBoxesSvgs
+    tailLabels <- oNewWithSvgLocation . mkGroup . tail $ dynamicXsLabelsSvgs
 
     traverse_
-        (\obj -> oModify obj $ oTranslate .~ V2 0 (-0.5))
+        (\obj -> oModify obj $ oTranslate +~ V2 0 (-0.5))
         [xsBoxes, xsLabels, headBox, headLabel, tailBoxes, tailLabels]
 
     let
+        hSep = dynamicBoxWidth
         showTypeSigFuncDef d = waitOn $ do
             forkAll
                 [ oShowWith typeSig $ setDuration d . oDraw
@@ -249,10 +261,10 @@ headDynamicAnimation xs = prepareScene $ scene $ do
             traverse_ oShow [headBox, headLabel, tailBoxes, tailLabels]
 
         splitHead d = waitOn $ forkAll
-            [ oTween headBox d $ oMoveBy (-0.5, 0)
-            , oTween headLabel d $ oMoveBy (-0.5, 0)
-            , oTween tailBoxes d $ oMoveBy (0.5, 0)
-            , oTween tailLabels d $ oMoveBy (0.5, 0)
+            [ oTween headBox d $ oMoveBy (-hSep/2, 0)
+            , oTween headLabel d $ oMoveBy (-hSep/2, 0)
+            , oTween tailBoxes d $ oMoveBy (hSep/2, 0)
+            , oTween tailLabels d $ oMoveBy (hSep/2, 0)
             ]
 
         moveFuncDefDown d = waitOn . forkAll $ fmap
@@ -262,10 +274,10 @@ headDynamicAnimation xs = prepareScene $ scene $ do
         focusHead d = waitOn $ forkAll
             [ oHideWith tailBoxes $ setDuration (d/2) . oFadeOut
             , oHideWith tailLabels $ setDuration (d/2) . oFadeOut
-            , oTween headLabel d $ oMoveBy (3.5, 0)
+            , oTween headLabel d $ oMoveTo (0, -0.5)
             , oTweenContext headLabel d
                 $ \t -> aroundCenterX (scale (1 + 0.5*t))
-            , oTween headBox d $ oMoveBy (3.5, 0)
+            , oTween headBox d $ oMoveTo (0, -0.5)
             , oHideWith headBox $ setDuration (d*3/2) . reverseA . oDraw
             ]
 
@@ -310,3 +322,14 @@ headDynamicAnimation xs = prepareScene $ scene $ do
 
 softSnapOutS :: Signal
 softSnapOutS = cssCubicBezierS (0.25, 0, 0, 1)
+
+centerOf :: SVG -> (Double, Double)
+centerOf svg = (minX + w/2, minY + h/2)
+    where (minX, minY, w, h) = boundingBox svg
+
+oNewWithSvgLocation :: SVG -> Scene s (Object s SVG)
+oNewWithSvgLocation svg = do
+    let (locX, locY) = centerOf svg
+    obj <- oNew $ center svg
+    oModify obj $ oTranslate .~ V2 locX locY
+    pure obj

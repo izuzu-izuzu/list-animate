@@ -2,6 +2,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Interactive.TUI.Head where
 
@@ -14,7 +15,7 @@ import Language.Haskell.Interpreter
     , MonadIO (liftIO)
     , eval
     , parens
-    , runStmt
+    , runStmt, typeOf
     )
 import Text.Printf (printf)
 
@@ -30,6 +31,7 @@ import Interactive.TUI.Core
 import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
 import Brick.Widgets.Center (hCenter)
+import Text.RawString.QQ (r)
 
 makeTitle :: String
 makeTitle = "head :: [a] -> a"
@@ -60,10 +62,31 @@ loadValidateXs state = do
     xs <- runLimitedEvalWithType $ unpack _arg1
     either (pure . Left) validateListStr xs
 
+resultTypeExpr :: String -> String
+resultTypeExpr = printf
+    [r|
+    let
+        proxy :: t -> Proxy t
+        proxy _ = Proxy
+        headProxy :: Proxy [a] -> [a] -> a
+        headProxy proxyXs = head
+    in
+        headProxy (proxy %v)
+    |]
+
+loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
+loadFuncType state = do
+    xs <- fmap parens <$> loadValidateXs state
+    case xs of
+        Right xs' -> runLimitedInterpreter . typeOf . resultTypeExpr $ xs'
+        Left xsErr -> pure $ Left xsErr
+
 loadResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadResult state = do
     xs <- fmap parens <$> loadValidateXs state
-    either (pure . Left) (runLimitedEvalWithType . printf "head %v") xs
+    case xs of
+        Right xs' -> runLimitedEvalWithType $ printf "head %v" xs'
+        Left xsErr -> pure $ Left xsErr
 
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
@@ -96,10 +119,11 @@ previewEvent state = do
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
     xs <- either (pure . Left) splitListStr =<< loadValidateXs state
+    funcType <- loadFuncType state
     result <- loadResult state
-    case (xs, result) of
-        (Right xs', Right _) ->
-            liftIO . reanimate $ headDynamicAnimation xs'
+    case (xs, funcType, result) of
+        (Right xs', Right funcType', Right _) ->
+            liftIO . reanimate $ headDynamicAnimation funcType' xs'
         _ -> pure ()
     previewEvent state
 

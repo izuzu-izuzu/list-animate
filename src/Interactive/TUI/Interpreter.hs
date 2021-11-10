@@ -26,7 +26,12 @@ runLimitedInterpreter
     -> m (Either InterpreterError String)
 runLimitedInterpreter task = liftIO $ do
     result <- runInterpreter $ do
-        setImports ["Prelude", "Text.Show.Functions"]
+        setImports
+            [ "Prelude"
+            , "Data.List"
+            , "Data.Proxy"
+            , "Text.Show.Functions"
+            ]
         task
     timeoutResult <- timeout maxTimeout $ do
         evaluate $ either (const ()) rnf result
