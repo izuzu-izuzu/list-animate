@@ -333,15 +333,3 @@ appendDynamicAnimation typeSigStr xs ys = prepareScene $ scene $ do
     highlightResult 0
 
     wait 3
-
-fitAnimationToSize :: (Double, Double) -> Animation -> Animation
-fitAnimationToSize (width, height) animation = mapA (scale factor) animation
-    where
-        dur = duration animation
-        sampleFrequency = 20
-        sampleFrames =
-            (`frameAt` animation) . (dur *) <$> [0, 1/sampleFrequency .. 1]
-        frameBoundingBoxes = boundingBox <$> sampleFrames
-        maxFrameWidth = maximum $ (\(_, _, w, _) -> w) <$> frameBoundingBoxes
-        maxFrameHeight = maximum $ (\(_, _, _, h) -> h) <$> frameBoundingBoxes
-        factor = minimum [1, width/maxFrameWidth, height/maxFrameHeight]

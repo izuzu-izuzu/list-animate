@@ -286,9 +286,6 @@ lengthAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
 
     wait 3
 
-softSnapOutS :: Signal
-softSnapOutS = cssCubicBezierS (0.25, 0, 0, 1)
-
 makeLengthBrace :: String -> Double -> SVG
 makeLengthBrace color =
     withDefaultLineStrokeFill

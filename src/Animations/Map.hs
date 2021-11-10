@@ -95,7 +95,7 @@ mapAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     oModify funcDef $ oTranslate .~ V2 0 1.5
 
     funcDefF <- oNew $ centerX funcDefFSvg
-    oModify funcDefF $ oTranslate .~ V2 (midX funcDefFSvg) 1.5
+    oModify funcDefF $ oTranslate .~ V2 (svgCenterX funcDefFSvg) 1.5
 
     xsBoxes <- oNew $ mkGroup xsBoxesSvgs
     xsLabels <- oNew $ mkGroup xsLabelsSvgs
@@ -389,7 +389,3 @@ clamp x l h
     | x < l = l
     | x > h = h
     | otherwise = x
-
-midX :: SVG -> Double
-midX svg = minX + w/2
-    where (minX, _, w, _) = boundingBox svg

@@ -41,6 +41,8 @@ module Utilities.Main
     , cssCubicBezierS
     , snapInS
     , snapOutS
+    , softSnapInS
+    , softSnapOutS
       -- ** Scenes
     , forkLag
     , forkAll
@@ -54,14 +56,16 @@ module Utilities.Main
     , mkAnimationE
     , animateE
     , composeE
+      -- ** Scaling
+    , fitAnimationToSize
       -- * Other
     , mkColorPixel
     , mkBackgroundAxes
     , mkBackgroundGrid
-    ) where
+    ,svgCenter,oNewWithSvgPosition,svgCenterX,svgCenterY) where
 
 import Codec.Picture (PixelRGBA8)
-import Control.Lens ((%~))
+import Control.Lens ((%~), (.~))
 import Data.List (find, intersperse)
 import Data.Text (Text, replace)
 import Graphics.SvgTree (Texture (ColorRef))
@@ -75,7 +79,7 @@ import Reanimate.LaTeX
     , latexCfg
     , latexCfgChunks
     )
-import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween)
+import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween, oModify, oNew)
 
 infixl 1 -<
 
@@ -477,6 +481,18 @@ snapInS :: Signal
 snapInS = reverseS . snapOutS . reverseS
 
 {-|
+    Soft snap-out signal.
+-}
+softSnapOutS :: Signal
+softSnapOutS = cssCubicBezierS (0.25, 0, 0, 1)
+
+{-|
+    Soft snap-in signal.
+-}
+softSnapInS :: Signal
+softSnapInS = reverseS . softSnapOutS . reverseS
+
+{-|
     Compose multiple 'Effect's into a single 'Effect'.
 -}
 composeE :: [Effect] -> Effect
@@ -506,8 +522,8 @@ centerGroupX svgs = fmap (translate (-midX) 0) svgs
         midX = minX + w/2
 
 {-|
-    Translate the given list of 'SVG's such that they are vertically centered as
-    a whole.
+    Translate the given list of 'SVG's such that they are vertically centered
+    as a whole.
 -}
 centerGroupY :: [SVG] -> [SVG]
 centerGroupY svgs = fmap (translate 0 (-midY)) svgs
@@ -525,3 +541,60 @@ centerGroup svgs = fmap (translate (-midX) (-midY)) svgs
         (minX, minY, w, h) = boundingBox $ mkGroup svgs
         midX = minX + w/2
         midY = minY + h/2
+
+{-|
+    Fit an animation within a set canvas size. If the animation already fits,
+    it is not scaled up.
+-}
+fitAnimationToSize :: (Double, Double) -> Animation -> Animation
+fitAnimationToSize (width, height) animation = mapA (scale factor) animation
+    where
+        dur = duration animation
+        sampleFrequency = 20
+        sampleFrames =
+            (`frameAt` animation) . (dur *) <$> [0, 1/sampleFrequency .. 1]
+        frameBoundingBoxes = boundingBox <$> sampleFrames
+        maxFrameWidth = maximum $ (\(_, _, w, _) -> w) <$> frameBoundingBoxes
+        maxFrameHeight = maximum $ (\(_, _, _, h) -> h) <$> frameBoundingBoxes
+        factor = minimum [1, width/maxFrameWidth, height/maxFrameHeight]
+
+{-|
+    Create a new 'Reanimate.Scene.Object' from an SVG, such that the position
+    of the SVG is transferred to the new object.
+
+    For example, if @svg@ is centered at (3, 4), then the new object created by
+    @oNewWithSvgPosition svg@ has position (3, 4), and the contained SVG is
+    centered at (0, 0). This way, all translations can be handled using the
+    object's position, without having to manipulate the inner SVG.
+-}
+oNewWithSvgPosition :: SVG -> Scene s (Object s SVG)
+oNewWithSvgPosition svg = do
+    let (locX, locY) = svgCenter svg
+    obj <- oNew $ center svg
+    oModify obj $ oTranslate .~ V2 locX locY
+    pure obj
+
+{-|
+    Find the coordinates of the center of an SVG.
+
+    This function internally uses 'boundingBox' and has the same limitations.
+-}
+svgCenter :: SVG -> (Double, Double)
+svgCenter svg = (minX + w/2, minY + h/2)
+    where (minX, minY, w, h) = boundingBox svg
+
+{-|
+    Find the /x/-coordinate of the center of an SVG.
+
+    This function internally uses 'boundingBox' and has the same limitations.
+-}
+svgCenterX :: SVG -> Double
+svgCenterX = fst . svgCenter
+
+{-|
+    Find the /y/-coordinate of the center of an SVG.
+
+    This function internally uses 'boundingBox' and has the same limitations.
+-}
+svgCenterY :: SVG -> Double
+svgCenterY = snd . svgCenter
