@@ -2,6 +2,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 module Interactive.TUI.Tail where
 
@@ -14,7 +15,7 @@ import Language.Haskell.Interpreter
     , MonadIO (liftIO)
     , eval
     , parens
-    , runStmt
+    , runStmt, typeOf
     )
 import Text.Printf (printf)
 
@@ -30,6 +31,7 @@ import Interactive.TUI.Core
 import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
 import Brick.Widgets.Center (hCenter)
+import Text.RawString.QQ (r)
 
 makeTitle :: String
 makeTitle = "tail :: [a] -> [a]"
@@ -60,19 +62,46 @@ loadValidateXs state = do
     xs <- runLimitedEvalWithType $ unpack _arg1
     either (pure . Left) validateListStr xs
 
-loadResult :: MonadIO m => State e -> m (Either InterpreterError String)
-loadResult state = do
+resultTypeExpr :: String -> String
+resultTypeExpr = printf
+    [r|
+    let
+        proxy :: t -> Proxy t
+        proxy _ = Proxy
+        tailProxy :: Proxy [a] -> [a] -> [a]
+        tailProxy proxyXs = tail
+    in
+        tailProxy (proxy %v)
+    |]
+
+loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
+loadFuncType state = do
     xs <- fmap parens <$> loadValidateXs state
-    either (pure . Left) (runLimitedEvalWithType . printf "tail %v") xs
+    case xs of
+        Right xs' -> runLimitedInterpreter . typeOf . resultTypeExpr $ xs'
+        Left xsErr -> pure $ Left xsErr
+
+loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
+loadRawResult state = do
+    let
+        Input{_arg1} = parensInput . formState . (^. form) $ state
+        xs = parens $ unpack _arg1
+    runLimitedEvalWithType $ printf "tail %v" xs
+
+loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
+loadResult state = do
+    rawResult <- fmap parens <$> loadRawResult state
+    either (pure . Left) splitListStr rawResult
 
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
+    rawResult <- loadRawResult state
     result <- loadResult state
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
         xsStr = either makeErrorMessage id xs
-        resultStr = either makeErrorMessage id result
+        resultStr = either makeErrorMessage id rawResult
         animateResultPrompt =
             withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
         animatePrompt = case (xs, result) of
@@ -96,10 +125,11 @@ previewEvent state = do
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
     xs <- either (pure . Left) splitListStr =<< loadValidateXs state
+    funcType <- loadFuncType state
     result <- loadResult state
-    case (xs, result) of
-        (Right xs', Right _) ->
-            liftIO . reanimate $ tailDynamicAnimation xs'
+    case (xs, funcType, result) of
+        (Right xs', Right funcType', Right _) ->
+            liftIO . reanimate $ tailDynamicAnimation funcType' xs'
         _ -> pure ()
     previewEvent state
 

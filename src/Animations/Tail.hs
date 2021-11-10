@@ -4,7 +4,7 @@
 
 module Animations.Tail (main, tailAnimation, tailDynamicAnimation) where
 
-import Control.Lens ((%~), (.~))
+import Control.Lens ((%~), (.~), (+~))
 import Data.Foldable (traverse_)
 
 import Reanimate
@@ -26,7 +26,7 @@ import Reanimate.Scene
 import Utilities.List
 import Utilities.Main
 import Linear (V2(V2))
-import Data.Text (pack)
+import Data.Text (pack, replace)
 
 main :: IO ()
 main = reanimate tailAnimation
@@ -177,13 +177,23 @@ tailAnimation = prepareScene $ scene $ do
     wait 3
 
 dynamicBoxWidth :: Double
-dynamicBoxWidth = 1.2
+dynamicBoxWidth = 1.5
 
 withDynamicBoxStrokeFill :: SVG -> SVG
-withDynamicBoxStrokeFill = withStrokeWidth 0.03 . withFillOpacity 0
+withDynamicBoxStrokeFill = withStrokeWidth 0.05 . withFillOpacity 0
 
 dynamicLabelTextScale :: Double
-dynamicLabelTextScale = 0.3
+dynamicLabelTextScale = 0.4
+
+makeDynamicTypeSigSvg :: String -> SVG
+makeDynamicTypeSigSvg =
+    centerX
+    . latexCfgCenteredYWith
+        firaMonoCfg
+        (withDefaultBoldTextStrokeFill . withDefaultTextScale)
+    . replace " " "~"
+    . pack
+    . ("tail :: " <>)
 
 makeDynamicXsBoxesSvgs :: [String] -> [SVG]
 makeDynamicXsBoxesSvgs xs = customListBoxesWith
@@ -200,13 +210,14 @@ makeDynamicXsLabelsSvgs xs = customListLabelsWith
     )
     (pack <$> xs)
 
-tailDynamicAnimation :: [String] -> Animation
-tailDynamicAnimation xs = prepareScene $ scene $ do
+tailDynamicAnimation :: String -> [String] -> Animation
+tailDynamicAnimation typeSigStr xs = prepareScene $ scene $ do
     let
+        dynamicTypeSigSvg = makeDynamicTypeSigSvg typeSigStr
         dynamicXsBoxesSvgs = makeDynamicXsBoxesSvgs xs
         dynamicXsLabelsSvgs = makeDynamicXsLabelsSvgs xs
     
-    typeSig <- oNew typeSigSvg
+    typeSig <- oNewWithSvgPosition dynamicTypeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
 
     funcDef <- oNew $ mkGroup funcDefSvgs
@@ -218,17 +229,18 @@ tailDynamicAnimation xs = prepareScene $ scene $ do
     xsBoxes <- oNew $ mkGroup dynamicXsBoxesSvgs
     xsLabels <- oNew $ mkGroup dynamicXsLabelsSvgs
 
-    headBox <- oNew $ head dynamicXsBoxesSvgs
-    headLabel <- oNew $ head dynamicXsLabelsSvgs
+    headBox <- oNewWithSvgPosition $ head dynamicXsBoxesSvgs
+    headLabel <- oNewWithSvgPosition $ head dynamicXsLabelsSvgs
 
-    tailBoxes <- oNew . mkGroup . tail $ dynamicXsBoxesSvgs
-    tailLabels <- oNew . mkGroup . tail $ dynamicXsLabelsSvgs
+    tailBoxes <- oNewWithSvgPosition . mkGroup . tail $ dynamicXsBoxesSvgs
+    tailLabels <- oNewWithSvgPosition . mkGroup . tail $ dynamicXsLabelsSvgs
 
     traverse_
-        (\obj -> oModify obj $ oTranslate .~ V2 0 (-0.5))
+        (\obj -> oModify obj $ oTranslate +~ V2 0 (-0.5))
         [xsBoxes, xsLabels, headBox, headLabel, tailBoxes, tailLabels]
 
     let
+        hSep = dynamicBoxWidth
         showTypeSigFuncDef d = waitOn $ do
             forkAll
                 [ oShowWith typeSig $ setDuration d . oDraw
@@ -247,10 +259,10 @@ tailDynamicAnimation xs = prepareScene $ scene $ do
             traverse_ oShow [headBox, headLabel, tailBoxes, tailLabels]
 
         splitHead d = waitOn $ forkAll
-            [ oTween headBox d $ oMoveBy (-0.5, 0)
-            , oTween headLabel d $ oMoveBy (-0.5, 0)
-            , oTween tailBoxes d $ oMoveBy (0.5, 0)
-            , oTween tailLabels d $ oMoveBy (0.5, 0)
+            [ oTween headBox d $ oMoveBy (-hSep/2, 0)
+            , oTween headLabel d $ oMoveBy (-hSep/2, 0)
+            , oTween tailBoxes d $ oMoveBy (hSep/2, 0)
+            , oTween tailLabels d $ oMoveBy (hSep/2, 0)
             ]
 
         moveFuncDefDown d = waitOn . forkAll $ fmap
