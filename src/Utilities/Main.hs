@@ -18,6 +18,9 @@ module Utilities.Main
     , latexCfgChunksCenteredYWith
       -- * SVG
       -- ** Attributes
+    , svgCenter
+    , svgCenterX
+    , svgCenterY
     , withDefaultTextScale
     , withDefaultTextStrokeFill
     , withDefaultBoldTextStrokeFill
@@ -49,6 +52,7 @@ module Utilities.Main
     , forkAllWithLag
     , forkAllWithDifferentLags
       -- *** Objects
+    , oNewWithSvgPosition
     , oMoveTo
     , oMoveBy
     , oTweenContext
@@ -62,7 +66,8 @@ module Utilities.Main
     , mkColorPixel
     , mkBackgroundAxes
     , mkBackgroundGrid
-    ,svgCenter,oNewWithSvgPosition,svgCenterX,svgCenterY) where
+    )
+where
 
 import Codec.Picture (PixelRGBA8)
 import Control.Lens ((%~), (.~))

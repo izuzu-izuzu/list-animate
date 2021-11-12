@@ -6,7 +6,7 @@ module Animations.Length (main, lengthAnimation) where
 
 import Control.Lens ((.~), (%~))
 import Data.Foldable (traverse_)
-import Data.Text (pack, Text)
+import Data.Text (Text, pack)
 import Linear (V2 (V2))
 
 import Reanimate
@@ -248,7 +248,7 @@ lengthAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
 
             oHide lengthBrace
             oShow lengthBrace'
-            
+
             forkAll
                 [ oTween funcDef 1 $ oMoveBy (0, -0.5)
                 , oTween funcDef 1 $ \t -> oContext .~

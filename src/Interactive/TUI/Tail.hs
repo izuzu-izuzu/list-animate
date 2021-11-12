@@ -1,37 +1,39 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Interactive.TUI.Tail where
 
-import Control.Lens ((.~), (^.), view)
-import Control.Monad ((<=<))
-import Data.List (intersperse)
+import Control.Lens ((.~), (^.))
 import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
     , MonadIO (liftIO)
-    , eval
     , parens
-    , runStmt, typeOf
+    , typeOf
     )
 import Text.Printf (printf)
+import Text.RawString.QQ (r)
 
-import Reanimate (reanimate)
+import Reanimate
 
 import Brick
 import Brick.Focus (focusGetCurrent)
-import Brick.Forms (Form (..), editTextField, newForm, setFormConcat, (@@=))
+import Brick.Forms
+    ( Form (formFocus, formState)
+    , editTextField
+    , newForm
+    , setFormConcat
+    , (@@=)
+    )
+import Brick.Widgets.Center (hCenter)
 
 import Animations.Tail
 
 import Interactive.TUI.Core
-import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
-import Brick.Widgets.Center (hCenter)
-import Text.RawString.QQ (r)
 
 makeTitle :: String
 makeTitle = "tail :: [a] -> [a]"

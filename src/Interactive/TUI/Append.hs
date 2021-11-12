@@ -1,36 +1,40 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Interactive.TUI.Append where
 
 import Control.Lens ((.~), (^.))
-import Data.List (intersperse)
 import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
     , MonadIO (liftIO)
-    , parens, setImports, typeOf
+    , parens
+    , setImports
+    , typeOf
     )
 import Text.Printf (printf)
+import Text.RawString.QQ (r)
 
-import Reanimate (reanimate)
+import Reanimate
 
 import Brick
 import Brick.Focus (focusGetCurrent)
-import Brick.Forms (Form (..), editTextField, newForm, setFormConcat, (@@=))
+import Brick.Forms
+    ( Form (formFocus, formState)
+    , editTextField
+    , newForm
+    , setFormConcat
+    , (@@=)
+    )
+import Brick.Widgets.Center (hCenter)
 
-import Animations.Append (appendDynamicAnimation)
+import Animations.Append
 
 import Interactive.TUI.Core
-import Interactive.TUI.Home
 import Interactive.TUI.Interpreter
-import Brick.Widgets.Center (hCenter)
-import Text.RawString.QQ (r)
 
 makeTitle :: String
 makeTitle = "(++) :: [a] -> [a] -> [a]"
@@ -168,4 +172,3 @@ animateErrorPrompt = withAttr "error"
     $ strWrap
         "Something went wrong when preparing the animation.\n\
         \Ensure your arguments have the correct types, then try again."
-

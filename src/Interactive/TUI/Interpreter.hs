@@ -10,7 +10,7 @@ import Control.Exception (evaluate)
 import Language.Haskell.Interpreter
     ( Interpreter
     , InterpreterError (UnknownError)
-    , MonadIO (..)
+    , MonadIO (liftIO)
     , eval
     , parens
     , runInterpreter
@@ -137,7 +137,7 @@ outputTooLongErrorMessage = printf
     "Output too long to be displayed.\n\
     \The maximum output length that can be displayed is %v characters."
     maxOutputLength
-    
+
 emptyListErrorMessage :: String
 emptyListErrorMessage =
     "Empty list.\n\

@@ -21,7 +21,8 @@ import Reanimate.Scene
     , oNew
     , oShow
     , oShowWith
-    , oTween, oTranslate, Object
+    , oTranslate
+    , oTween
     )
 
 import Utilities.List
@@ -218,7 +219,7 @@ headDynamicAnimation typeSigStr xs = prepareScene $ scene $ do
         dynamicTypeSigSvg = makeDynamicTypeSigSvg typeSigStr
         dynamicXsBoxesSvgs = makeDynamicXsBoxesSvgs xs
         dynamicXsLabelsSvgs = makeDynamicXsLabelsSvgs xs
-    
+
     typeSig <- oNewWithSvgPosition dynamicTypeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
 

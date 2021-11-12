@@ -5,10 +5,9 @@
 module Interactive.TUI.Home where
 
 import Control.Lens ((.~), (^.))
-import Data.List (intersperse)
 
 import Brick
-import Brick.Forms
+import Brick.Forms (Form (formState), newForm, radioCustomField)
 
 import Interactive.TUI.Core
 

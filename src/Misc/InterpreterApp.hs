@@ -8,20 +8,16 @@
 module Misc.InterpreterApp where
 
 import Data.Text (Text, unpack)
-import Text.Pretty.Simple (pPrint)
 import Control.Lens (makeLenses, (^.), (.~))
-import Graphics.Vty (yellow, black, defAttr, white, red, Event (EvResize, EvKey), Key (KEsc, KEnter, KChar), mkVty, Output (setMode), Vty (outputIface), Mode (Mouse), Modifier (MCtrl, MShift))
-import Brick ((<+>), padLeftRight, hLimit, vLimit, fill, str, AttrMap, on, attrMap, Widget, (<=>), Padding (Max), padRight, strWrap, BrickEvent (VtyEvent), EventM, Next, continue, halt, handleEventLensed, App (appDraw, App, appHandleEvent, appStartEvent, appChooseCursor, appAttrMap), customMain, emptyWidget, strWrapWith, vBox)
-import Language.Haskell.Interpreter (eval, Interpreter, runInterpreter, setImports, runStmt, parens, InterpreterError (UnknownError), liftIO)
-import Data.Foldable (traverse_)
-import Brick.Forms (Form (formFocus, formState), setFormConcat, newForm, editTextField, (@@=), invalidFormInputAttr, focusedFormInputAttr, renderForm, handleFormEvent, setFieldConcat)
+import Graphics.Vty (yellow, black, defAttr, white, red, Event (EvResize, EvKey), Key (KEsc, KEnter, KChar), mkVty, Output (setMode), Vty (outputIface), Mode (Mouse), Modifier (MCtrl))
+import Brick ((<+>), padLeftRight, hLimit, vLimit, fill, str, AttrMap, on, attrMap, Widget, (<=>), Padding (Max), padRight, strWrap, BrickEvent (VtyEvent), EventM, Next, continue, halt, handleEventLensed, App (appDraw, App, appHandleEvent, appStartEvent, appChooseCursor, appAttrMap), customMain, strWrapWith, vBox)
+import Language.Haskell.Interpreter (eval, runInterpreter, setImports, runStmt, parens, InterpreterError (UnknownError))
+import Brick.Forms (Form (formFocus, formState), setFormConcat, newForm, editTextField, (@@=), invalidFormInputAttr, focusedFormInputAttr, renderForm, handleFormEvent)
 import Brick.Widgets.Edit (editAttr, editFocusedAttr)
-import Brick.Widgets.Center (vCenter, hCenter)
-import Brick.Widgets.Border (borderWithLabel, hBorder)
+import Brick.Widgets.Center (hCenter)
+import Brick.Widgets.Border (borderWithLabel)
 import Brick.Focus (focusRingCursor, focusGetCurrent)
 import Graphics.Vty.Config (standardIOConfig)
-import System.Timeout (timeout)
-import Data.Maybe (fromMaybe)
 import Text.Wrap (WrapSettings(WrapSettings, preserveIndentation, breakLongWords))
 import Data.List (intersperse)
 
@@ -182,4 +178,3 @@ openApp = do
         runStmt $ "let f = " <> parens (unpack finalF)
         eval "map f xs"
     putStrLn $ either show (take 200) finalResult
-

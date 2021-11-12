@@ -18,15 +18,17 @@ import Graphics.Vty
     ( Output (setMode)
     , Vty (outputIface)
     , black
-    , blue
+    , bold
     , brightBlack
+    , brightMagenta
+    , cyan
     , defAttr
-    , green
     , mkVty
     , red
     , standardIOConfig
     , white
-    , yellow, cyan, brightCyan, brightRed, brightYellow, withStyle, bold, italic, magenta, brightMagenta
+    , withStyle
+    , yellow
     )
 import qualified Graphics.Vty as Vty
 import Text.Pretty.Simple (pPrint)
@@ -39,10 +41,11 @@ import Brick.Forms
     , handleFormEvent
     , invalidFormInputAttr
     , newForm
-    , renderForm, updateFormState
+    , renderForm
     )
+import Brick.Widgets.Border (borderWithLabel)
+import Brick.Widgets.Center (hCenter, vCenter)
 import Brick.Widgets.Edit (editAttr, editFocusedAttr)
-import Brick.Widgets.List (listAttr, listSelectedAttr)
 
 import qualified Interactive.TUI.Append as Append
 import Interactive.TUI.Core
@@ -50,11 +53,6 @@ import qualified Interactive.TUI.Head as Head
 import Interactive.TUI.Home
 import qualified Interactive.TUI.Home as Home
 import qualified Interactive.TUI.Tail as Tail
-import Interactive.TUI.Tail
-import Brick.Widgets.Center (hCenter, vCenter)
-import Brick.Widgets.Border (borderWithLabel)
-import Utilities.Main ((-<))
-import Brick.Widgets.Border.Style (borderStyleFromChar, unicodeRounded)
 
 main :: IO ()
 main = do

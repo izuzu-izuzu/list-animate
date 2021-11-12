@@ -6,18 +6,17 @@
 
 module Interactive.TUI.Core where
 
-import Control.Lens (makeLenses, (%~), Lens')
-import Data.Text (Text, unpack, pack)
+import Control.Lens (makeLenses, (%~))
+import Data.Text (Text, pack, unpack)
 import Graphics.Vty
     ( Event (EvKey, EvResize)
     , Key (KChar, KEnter, KEsc)
     , Modifier
     )
+import Language.Haskell.Interpreter (parens)
 
 import Brick
 import Brick.Forms (Form, FormFieldState, radioCustomField, setFieldConcat)
-import Brick.Widgets.Center (vCenter, hCenter)
-import Language.Haskell.Interpreter (parens)
 
 data Input = Input
     { _arg1 :: Text

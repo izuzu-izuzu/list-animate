@@ -78,7 +78,7 @@ lastAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
 
     xsBoxes <- oNew $ mkGroup xsBoxesSvgs
     oModify xsBoxes $ oTranslate .~ V2 0 (-0.5)
-    
+
     xsLabels <- oNew $ mkGroup xsLabelsSvgs
     oModify xsLabels $ oTranslate .~ V2 0 (-0.5)
 

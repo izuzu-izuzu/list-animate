@@ -1,12 +1,11 @@
 {-# OPTIONS_GHC -Wall #-}
 
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Misc.MultiApp where
 
-import Control.Lens (makeLenses, (^.), (%~))
+import Control.Lens (makeLenses, (^.))
 import qualified Graphics.Vty as V
 
 import qualified Brick.Main as M

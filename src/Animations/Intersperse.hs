@@ -6,6 +6,7 @@ module Animations.Intersperse (main, intersperseAnimation) where
 
 import Control.Lens ((.~))
 import Data.Foldable (traverse_)
+import Data.List (intersperse)
 import Data.Text (pack)
 import Linear (V2 (V2))
 
@@ -15,6 +16,7 @@ import Reanimate.Scene
     ( oContext
     , oDraw
     , oEasing
+    , oFadeIn
     , oFadeOut
     , oHide
     , oHideWith
@@ -23,12 +25,11 @@ import Reanimate.Scene
     , oShow
     , oShowWith
     , oTranslate
-    , oTween, oFadeIn
+    , oTween
     )
 
 import Utilities.List
 import Utilities.Main
-import Data.List (intersperse)
 
 main :: IO ()
 main = reanimate intersperseAnimation
@@ -89,9 +90,8 @@ intersperseAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
     xsLabels <- oNew $ mkGroup xsLabelsSvgs
     oModify xsLabels $ oTranslate .~ V2 0 (-0.5)
 
-    xsSplitBoxes@(~[x0B, x1B, x2B, dotsB, xn3B, xn2B, xn1B]) <-
-        traverse oNew xsBoxesSvgs
-    xsSplitLabels@(~[x0L, x1L, x2L, dotsL, xn3L, xn2L, xn1L]) <-
+    xsSplitBoxes <- traverse oNew xsBoxesSvgs
+    xsSplitLabels@(~[_, _, _, dotsL, _, _, _]) <-
         traverse oNew xsLabelsSvgs
     traverse_
         (\x -> oModify x $ oTranslate .~ V2 0 (-0.5))
@@ -156,8 +156,6 @@ intersperseAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                         (\obj -> oTween obj 1 $ oMoveBy (-sep, 0))
                         ( take 1 xsSplitBoxes
                         ++ take 1 xsSplitLabels
-                        ++ take 0 ySplitBoxes
-                        ++ take 0 ySplitLabels
                         )
                 splitX1 = waitOn . forkAll
                     $ moveAllRight 1
@@ -263,12 +261,12 @@ intersperseAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                         ++ take 5 ySplitBoxes
                         ++ take 5 ySplitLabels
                         )
-                        
+
             oHide xsBoxes
             oHide xsLabels
             traverse_ oShow xsSplitBoxes
             traverse_ oShow xsSplitLabels
-            
+
             traverse_
                 (\x -> oModify x $ oTranslate .~ V2 (-sep/2) (-0.5))
                 (ySplitBoxes ++ ySplitLabels)

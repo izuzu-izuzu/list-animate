@@ -4,14 +4,15 @@
 
 module Animations.Tail (main, tailAnimation, tailDynamicAnimation) where
 
-import Control.Lens ((%~), (.~), (+~))
+import Control.Lens ((+~), (.~))
 import Data.Foldable (traverse_)
+import Data.Text (pack, replace)
+import Linear (V2 (V2))
 
 import Reanimate
 import Reanimate.Builtin.Documentation (docEnv)
 import Reanimate.Scene
-    ( oContext
-    , oDraw
+    ( oDraw
     , oEasing
     , oFadeOut
     , oHide
@@ -20,13 +21,12 @@ import Reanimate.Scene
     , oNew
     , oShow
     , oShowWith
-    , oTween, oTranslate
+    , oTranslate
+    , oTween
     )
 
 import Utilities.List
 import Utilities.Main
-import Linear (V2(V2))
-import Data.Text (pack, replace)
 
 main :: IO ()
 main = reanimate tailAnimation
@@ -216,7 +216,7 @@ tailDynamicAnimation typeSigStr xs = prepareScene $ scene $ do
         dynamicTypeSigSvg = makeDynamicTypeSigSvg typeSigStr
         dynamicXsBoxesSvgs = makeDynamicXsBoxesSvgs xs
         dynamicXsLabelsSvgs = makeDynamicXsLabelsSvgs xs
-    
+
     typeSig <- oNewWithSvgPosition dynamicTypeSigSvg
     oModify typeSig $ oTranslate .~ V2 0 2.5
 

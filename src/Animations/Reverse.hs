@@ -4,7 +4,7 @@
 
 module Animations.Reverse (main, reverseAnimation) where
 
-import Control.Lens ((.~), (%~))
+import Control.Lens ((.~))
 import Data.Foldable (traverse_)
 import Data.Text (pack)
 import Linear (V2 (V2))
@@ -15,15 +15,14 @@ import Reanimate.Scene
     ( oContext
     , oDraw
     , oEasing
-    , oFadeOut
     , oHide
-    , oHideWith
     , oModify
     , oNew
+    , oRead
     , oShow
     , oShowWith
     , oTranslate
-    , oTween, oZIndex, oRead
+    , oTween
     )
 
 import Utilities.List
@@ -119,9 +118,6 @@ reverseAnimation = env . applyE (overEnding 1 fadeOutE) $ scene $ do
                     oTween obj t $ (oTranslate .~) . (start +) . relPath
                 splitMove dx1 dx2 dy = movePath
                     $ cubicBezierV2 (V2 0 0) (V2 dx1 0) (V2 dx1 dy) (V2 dx2 dy)
-                moveXsRight = forkAll $ fmap
-                    (\obj -> oTween obj 1 $ oMoveBy (hSep/2, 0))
-                    (xsSplitBoxes ++ xsSplitLabels)
                 splitX0 = do
                     fork . forkAll $ fmap
                         (splitMove (-hSep/2) 8 (-vSep) 1.25)
