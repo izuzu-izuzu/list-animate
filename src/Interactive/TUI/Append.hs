@@ -36,15 +36,27 @@ import Animations.Append
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
 
+{-|
+    App page title.
+-}
 makeTitle :: String
 makeTitle = "(++) :: [a] -> [a] -> [a]"
 
+{-|
+    Function name.
+-}
 funcName :: String
 funcName = "(++)"
 
+{-|
+    Function expression.
+-}
 funcDef :: String
 funcDef = "xs ++ ys"
 
+{-|
+    Render the user input form.
+-}
 makeForm :: Input -> Form Input e Name
 makeForm =
     setFormConcat (vBox . (funcDefWidget :))
@@ -55,6 +67,9 @@ makeForm =
         ]
     where funcDefWidget = hCenter $ str funcDef
 
+{-|
+    Render instructions for the user.
+-}
 makeNote :: Widget n
 makeNote = strWrap $ printf
     "Ensure the lists xs and ys each contain between 1 and %v elements, and \
@@ -63,18 +78,30 @@ makeNote = strWrap $ printf
     maxListLength
     maxElementLength
 
+{-|
+    Load the first input field as @xs@ in @xs ++ ys@, verifying that @xs@ is a
+    valid expression and satisfies the instructions given in 'makeNote'.
+-}
 loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateXs state = do
     let Input{_arg1} = parensInput . formState . (^. form) $ state
     xs <- runLimitedEvalWithType $ unpack _arg1
     either (pure . Left) validateListStr xs
 
+{-|
+    Load the second input field as @ys@ in @xs ++ ys@, verifying that @ys@ is a
+    valid expression that satisfies the instructions given in 'makeNote'.
+-}
 loadValidateYs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateYs state = do
     let Input{_arg2} = parensInput . formState . (^. form) $ state
     ys <- runLimitedEvalWithType $ unpack _arg2
     either (pure . Left) validateListStr ys
 
+{-|
+    Expression used to determine the instantiated type of '(++)', given valid
+    strings for @xs@ and @ys@.
+-}
 resultTypeExpr :: String -> String -> String
 resultTypeExpr = printf
     [r|
@@ -87,6 +114,9 @@ resultTypeExpr = printf
         appendProxy (proxy %v) (proxy %v)
     |]
 
+{-|
+    Determine the instantiated type of '(++)'.
+-}
 loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
 loadFuncType state = do
     xs <- fmap parens <$> loadValidateXs state
@@ -103,6 +133,10 @@ loadFuncType state = do
         (Left xsErr, _) -> pure $ Left xsErr
         (_, Left ysErr) -> pure $ Left ysErr
 
+{-|
+    Evaluate @xs ++ ys@ and return the result as a string, roughly
+    corresponding to @show (xs ++ ys)@.
+-}
 loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadRawResult state = do
     let
@@ -111,11 +145,19 @@ loadRawResult state = do
         ys = parens $ unpack _arg2
     runLimitedEvalWithType $ printf "%v ++ %v" xs ys
 
+{-|
+    Evaluate @xs ++ ys@ and return the result as a list of strings, roughly
+    corresponding to @fmap show (xs ++ ys)@.
+-}
 loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
 loadResult state = do
     rawResult <- fmap parens <$> loadRawResult state
     either (pure . Left) splitListStr rawResult
 
+{-|
+    Preview the arguments and display any error prompts, either when the user
+    selects [Preview] or right after an animation is rendered.
+-}
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
@@ -151,6 +193,11 @@ previewEvent state = do
             _ -> emptyWidget
     continue . (output .~ prompt) $ state
 
+{-|
+    When the user selects [Animate], render an animation using the given
+    arguments if possible, then display either the result or any error
+    messages.
+-}
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
     xs <- either (pure . Left) splitListStr =<< loadValidateXs state
@@ -163,10 +210,17 @@ animateEvent state = do
         _ -> pure ()
     previewEvent state
 
+{-|
+    Prompt for when all arguments are valid and an animation is available.
+-}
 animateAvailablePrompt :: Widget Name
 animateAvailablePrompt = withAttr "actionAvailable"
     $ strWrap "Select [Animate] to view the animation."
 
+{-|
+    Prompt for when each argument is valid but the result cannot be calculated
+    (perhaps due to a type mismatch).
+-}
 animateErrorPrompt :: Widget Name
 animateErrorPrompt = withAttr "error"
     $ strWrap

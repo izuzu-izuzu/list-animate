@@ -35,12 +35,21 @@ import Animations.Head
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
 
+{-|
+    App page title.
+-}
 makeTitle :: String
 makeTitle = "head :: [a] -> a"
 
+{-|
+    Function expression.
+-}
 funcDef :: String
 funcDef = "head xs"
 
+{-|
+    Render the user input form.
+-}
 makeForm :: Input -> Form Input e Name
 makeForm =
     setFormConcat (vBox . (funcDefWidget :))
@@ -50,6 +59,9 @@ makeForm =
         ]
     where funcDefWidget = hCenter $ str funcDef
 
+{-|
+    Render instructions for the user.
+-}
 makeNote :: Widget n
 makeNote = strWrap $ printf
     "Ensure the list xs contains between 1 and %v elements, and that each \
@@ -58,12 +70,20 @@ makeNote = strWrap $ printf
     maxListLength
     maxElementLength
 
+{-|
+    Load the first input field as @xs@ in @head xs@, verifying that @xs@ is a
+    valid expression and satisfies the instructions given in 'makeNote'.
+-}
 loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
 loadValidateXs state = do
     let Input{_arg1} = parensInput . formState . (^. form) $ state
     xs <- runLimitedEvalWithType $ unpack _arg1
     either (pure . Left) validateListStr xs
 
+{-|
+    Expression used to determine the instantiated type of 'head', given a valid
+    string for @xs@.
+-}
 resultTypeExpr :: String -> String
 resultTypeExpr = printf
     [r|
@@ -76,6 +96,9 @@ resultTypeExpr = printf
         headProxy (proxy %v)
     |]
 
+{-|
+    Determine the instantiated type of 'head'.
+-}
 loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
 loadFuncType state = do
     xs <- fmap parens <$> loadValidateXs state
@@ -83,6 +106,10 @@ loadFuncType state = do
         Right xs' -> runLimitedInterpreter . typeOf . resultTypeExpr $ xs'
         Left xsErr -> pure $ Left xsErr
 
+{-|
+    Evaluate @head xs@ and return the result as a string, roughly corresponding
+    to @show (head xs)@.
+-}
 loadResult :: MonadIO m => State e -> m (Either InterpreterError String)
 loadResult state = do
     xs <- fmap parens <$> loadValidateXs state
@@ -90,6 +117,10 @@ loadResult state = do
         Right xs' -> runLimitedEvalWithType $ printf "head %v" xs'
         Left xsErr -> pure $ Left xsErr
 
+{-|
+    Preview the argument and display any error prompts, either when the user
+    selects [Preview] or right after an animation is rendered.
+-}
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
     xs <- loadValidateXs state
@@ -118,6 +149,10 @@ previewEvent state = do
             _ -> emptyWidget
     continue . (output .~ prompt) $ state
 
+{-|
+    When the user selects [Animate], render an animation using the given
+    argument if possible, then display either the result or any error messages.
+-}
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
     xs <- either (pure . Left) splitListStr =<< loadValidateXs state
@@ -129,10 +164,17 @@ animateEvent state = do
         _ -> pure ()
     previewEvent state
 
+{-|
+    Prompt for when the given argument is valid and an animation is available.
+-}
 animateAvailablePrompt :: Widget Name
 animateAvailablePrompt = withAttr "actionAvailable"
     $ strWrap "Select [Animate] to view the animation."
 
+{-|
+    Prompt for when the given argument is valid but the result cannot be
+    calculated (perhaps due to a type mismatch or some other error).
+-}
 animateErrorPrompt :: Widget Name
 animateErrorPrompt = withAttr "error"
     $ strWrap

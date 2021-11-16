@@ -20,6 +20,9 @@ import Language.Haskell.Interpreter
 import System.Timeout (timeout)
 import Text.Printf (printf)
 
+{-|
+    Run an interpreter with a maximum duration and output length.
+-}
 runLimitedInterpreter
     :: MonadIO m
     => Interpreter String
@@ -42,9 +45,16 @@ runLimitedInterpreter task = liftIO $ do
         Just (Right []) -> result
         Just (Right _) -> Left OutputTooLongError
 
+{-|
+    'eval' a string using a limited interpreter.
+-}
 runLimitedEval :: MonadIO m => String -> m (Either InterpreterError String)
 runLimitedEval = runLimitedInterpreter . eval
 
+{-|
+    'eval' a string using a limited interpreter, with the type signature
+    included.
+-}
 runLimitedEvalWithType
     :: MonadIO m
     => String
@@ -55,8 +65,9 @@ runLimitedEvalWithType arg = runLimitedInterpreter $ do
     pure $ printf "%v :: %v" expr ty
 
 {-|
-    A list must have 6 elements or fewer, with each element having length 6 or
-    lower.
+    Read an expression as a list, then return a list of strings, each
+    corresponding to an element. This is somewhat similar to
+    @fmap show . read@.
 -}
 splitListStr :: MonadIO m => String -> m (Either InterpreterError [String])
 splitListStr =
@@ -66,6 +77,11 @@ splitListStr =
     . ("show <$> " <>)
     . parens
 
+{-|
+    Verify that the given expression corresponds to a list that contains
+    between 1 and 'maxListLength' elements, with each element spanning no more
+    than 'maxElementLength' characters.
+-}
 validateListStr :: MonadIO m => String -> m (Either InterpreterError String)
 validateListStr listStr = do
     list <- splitListStr listStr
@@ -80,6 +96,9 @@ validateListStr listStr = do
         isLongList = isLongerThan maxListLength
         hasLongElement = any (isLongerThan maxElementLength)
 
+{-|
+    Validate the list expression, then split it.
+-}
 validateSplitListStr
     :: MonadIO m
     => String
@@ -87,6 +106,9 @@ validateSplitListStr
 validateSplitListStr listStr =
     either (pure . Left) splitListStr =<< validateListStr listStr
 
+{-|
+    Validate a plain list (not an expression representing a list).
+-}
 validateList :: Show a => [a] -> Bool
 validateList =
     and
@@ -102,12 +124,21 @@ isNoLongerThan maxLength = null . drop maxLength
 isLongerThan :: Int -> [a] -> Bool
 isLongerThan maxLength = not . null . drop maxLength
 
+{-|
+    Maximum list length that can fit within the animation canvas.
+-}
 maxListLength :: Int
 maxListLength = 6
 
+{-|
+    Maximum element length that can be legibly animated.
+-}
 maxElementLength :: Int
 maxElementLength = 6
 
+{-|
+    Make user-friendly error messages upon encountering an 'InterpreterError'.
+-}
 makeErrorMessage :: InterpreterError -> String
 makeErrorMessage TimeoutError = timeoutErrorMessage
 makeErrorMessage OutputTooLongError = outputTooLongErrorMessage
@@ -155,9 +186,17 @@ elementTooLongErrorMessage = printf
     \Ensure all elements can be displayed in no more than %v characters."
     maxElementLength
 
+{-|
+    Maximum time that a limited interpreter (e.g. in 'runLimitedInterpreter')
+    can run for.
+-}
 maxTimeout :: Int
 maxTimeout = 2 * 10^(6 :: Int)
 
+{-|
+    Maximum output length that a limited interpreter (e.g. in
+    'runLimitedInterpreter') can return.
+-}
 maxOutputLength :: Int
 maxOutputLength = 200
 
