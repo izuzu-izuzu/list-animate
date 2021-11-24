@@ -120,7 +120,7 @@ load state = do
     pure $ LoadResult xs funcType result
 
 {-|
-    Preview the arguments and display any error prompts, either when the user
+    Preview the argument and display any error prompts, either when the user
     selects [Preview] or right after an animation is rendered.
 -}
 previewEvent :: State e -> EventM Name (Next (State e))
@@ -159,7 +159,7 @@ previewEvent' state loadResult = do
 
 {-|
     When the user selects [Animate], render an animation using the given
-    arguments if possible, then display either the result or any error
+    argument if possible, then display either the result or any error
     messages.
 -}
 animateEvent :: State e -> EventM Name (Next (State e))

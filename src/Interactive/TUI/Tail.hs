@@ -7,6 +7,8 @@
 module Interactive.TUI.Tail where
 
 import Control.Lens ((.~), (^.))
+import Control.Monad.Catch (MonadMask)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
@@ -34,6 +36,14 @@ import Animations.Tail
 
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
+
+import Utilities.Main
+
+data LoadResult = LoadResult
+    { _xs :: Either InterpreterError (String, [String])
+    , _funcType :: Either InterpreterError String
+    , _result :: Either InterpreterError (String, [String])
+    }
 
 {-|
     App page title.
@@ -71,21 +81,11 @@ makeNote = strWrap $ printf
     maxElementLength
 
 {-|
-    Load the first input field as @xs@ in @tail xs@, verifying that @xs@ is a
-    valid expression and satisfies the instructions given in 'makeNote'.
--}
-loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
-loadValidateXs state = do
-    let Input{_arg1} = parensInput . formState . (^. form) $ state
-    xs <- runLimitedEvalWithType $ unpack _arg1
-    either (pure . Left) validateListStr xs
-
-{-|
     Expression used to determine the instantiated type of 'tail', given a valid
     string for @xs@.
 -}
-resultTypeExpr :: String -> String
-resultTypeExpr = printf
+funcTypeEvalStr :: String -> String
+funcTypeEvalStr xs = printf
     [r|
     let
         proxy :: t -> Proxy t
@@ -95,36 +95,32 @@ resultTypeExpr = printf
     in
         tailProxy (proxy %v)
     |]
+    (parens xs)
 
-{-|
-    Determine the instantiated type of 'tail'.
--}
-loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
-loadFuncType state = do
-    xs <- fmap parens <$> loadValidateXs state
-    case xs of
-        Right xs' -> runLimitedInterpreter . typeOf . resultTypeExpr $ xs'
-        Left xsErr -> pure $ Left xsErr
-
-{-|
-    Evaluate @tail xs@ and return the result as a string, roughly corresponding
-    to @show (tail xs)@.
--}
-loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
-loadRawResult state = do
+load :: (MonadIO m, MonadMask m) => State e -> m LoadResult
+load state = do
     let
         Input{_arg1} = parensInput . formState . (^. form) $ state
-        xs = parens $ unpack _arg1
-    runLimitedEvalWithType $ printf "tail %v" xs
-
-{-|
-    Evaluate @tail xs@ and return the result as a list of strings, roughly
-    corresponding to @fmap show (tail xs)@.
--}
-loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
-loadResult state = do
-    rawResult <- fmap parens <$> loadRawResult state
-    either (pure . Left) splitListStr rawResult
+        xsStr = unpack _arg1
+        criteria =
+            [ (not . null, EmptyListError)
+            , (not . isLongerThan 6, ListTooLongError)
+            , (not . any (isLongerThan 6), ElementTooLongError)
+            ]
+    xs <- runExceptT $ do
+        xsExpr <- validateListStrWith criteria =<< runLimitedEvalWithType xsStr
+        xsVal <- splitListStr xsExpr
+        pure (xsExpr, xsVal)
+    funcType <-
+        runExceptT
+        . runLimitedInterpreter
+        . typeOf
+        $ funcTypeEvalStr xsStr
+    result <- runExceptT $ do
+        resultExpr <- runLimitedEvalWithType $ printf "tail %v" xsStr
+        resultVal <- splitListStr resultExpr
+        pure (resultExpr, resultVal)
+    pure $ LoadResult xs funcType result
 
 {-|
     Preview the argument and display any error prompts, either when the user
@@ -132,47 +128,51 @@ loadResult state = do
 -}
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
-    xs <- loadValidateXs state
-    rawResult <- loadRawResult state
-    result <- loadResult state
+    loadResult <- load state
+    previewEvent' state loadResult
+
+previewEvent' :: State e -> LoadResult -> EventM Name (Next (State e))
+previewEvent' state loadResult = do
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
-        xsStr = either makeErrorMessage id xs
-        resultStr = either makeErrorMessage id rawResult
+        LoadResult{_xs, _funcType, _result} = loadResult
+        xsWidget = either makeErrorWidget (strWrapBreak . fst) _xs
+        resultWidget = either makeErrorWidget (strWrapBreak . fst) _result
         animateResultPrompt =
-            withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
-        animatePrompt = case (xs, result) of
+            withAttr "bold" $ str (funcDef <> ": ") <+> resultWidget
+        animatePrompt = case (_xs, _result) of
             (Right _, Right _) -> animateResultPrompt
             (Right _, Left _) -> animateErrorPrompt
             _ -> emptyWidget
-        previewPrompt = case (xs, result) of
+        previewPrompt = case (_xs, _result) of
             (Right _, Right _) -> animateAvailablePrompt
             _ -> emptyWidget
         prompt = case focus of
-            Just Arg1Field -> str "xs: " <+> strWrap xsStr
-            Just NavPreviewField ->
-                (str "xs: " <+> strWrap xsStr)
-                <=> previewPrompt
-            Just NavAnimateField ->
-                (str "xs: " <+> strWrap xsStr)
-                <=> animatePrompt
+            Just Arg1Field -> str "xs: " <+> xsWidget
+            Just NavPreviewField -> vBox
+                [ str "xs: " <+> xsWidget
+                , previewPrompt
+                ]
+            Just NavAnimateField -> vBox
+                [ str "xs: " <+> xsWidget
+                , animatePrompt
+                ]
             _ -> emptyWidget
     continue . (output .~ prompt) $ state
 
 {-|
     When the user selects [Animate], render an animation using the given
-    argument if possible, then display either the result or any error messages.
+    argument if possible, then display either the result or any error
+    messages.
 -}
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
-    xs <- either (pure . Left) splitListStr =<< loadValidateXs state
-    funcType <- loadFuncType state
-    result <- loadResult state
-    case (xs, funcType, result) of
-        (Right xs', Right funcType', Right _) ->
+    loadResult@LoadResult{_xs, _funcType, _result} <- load state
+    case (_xs, _funcType, _result) of
+        (Right (_, xs'), Right funcType', Right _) ->
             liftIO . reanimate $ tailDynamicAnimation funcType' xs'
         _ -> pure ()
-    previewEvent state
+    previewEvent' state loadResult
 
 {-|
     Prompt for when the given argument is valid and an animation is available.
