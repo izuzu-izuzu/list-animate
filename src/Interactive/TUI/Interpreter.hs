@@ -2,20 +2,23 @@
 
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Interactive.TUI.Interpreter where
 
-import Control.DeepSeq (NFData (rnf))
 import Control.Exception (evaluate)
+import Control.Monad.Catch (MonadMask)
+import Control.Monad.Trans.Except (ExceptT (ExceptT), throwE)
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT), maybeToExceptT)
+import Data.Foldable (find)
 import Language.Haskell.Interpreter
-    ( Interpreter
-    , InterpreterError (UnknownError)
+    ( InterpreterError (UnknownError)
     , MonadIO (liftIO)
     , eval
     , parens
     , runInterpreter
     , setImports
-    , typeOf
+    , typeOf, InterpreterT
     )
 import System.Timeout (timeout)
 import Text.Printf (printf)
@@ -24,11 +27,11 @@ import Text.Printf (printf)
     Run an interpreter with a maximum duration and output length.
 -}
 runLimitedInterpreter
-    :: MonadIO m
-    => Interpreter String
-    -> m (Either InterpreterError String)
-runLimitedInterpreter task = liftIO $ do
-    result <- runInterpreter $ do
+    :: (MonadIO m, MonadMask m)
+    => InterpreterT m String
+    -> ExceptT InterpreterError m String
+runLimitedInterpreter task = do
+    result <- ExceptT . runInterpreter $ do
         setImports
             [ "Prelude"
             , "Data.List"
@@ -36,19 +39,24 @@ runLimitedInterpreter task = liftIO $ do
             , "Text.Show.Functions"
             ]
         task
-    timeoutResult <- timeout maxTimeout $ do
-        evaluate $ either (const ()) rnf result
-        pure result
-    pure $ case fmap (drop maxOutputLength <$>) timeoutResult of
-        Nothing -> Left TimeoutError
-        Just (Left err) -> Left err
-        Just (Right []) -> result
-        Just (Right _) -> Left OutputTooLongError
+    timeoutResult <-
+        maybeToExceptT TimeoutError
+        . MaybeT
+        . liftIO
+        . timeout maxTimeout
+        . evaluate
+        $ result
+    case drop maxOutputLength timeoutResult of
+        [] -> pure result
+        _ -> throwE OutputTooLongError
 
 {-|
     'eval' a string using a limited interpreter.
 -}
-runLimitedEval :: MonadIO m => String -> m (Either InterpreterError String)
+runLimitedEval
+    :: (MonadIO m, MonadMask m)
+    => String
+    -> ExceptT InterpreterError m String
 runLimitedEval = runLimitedInterpreter . eval
 
 {-|
@@ -56,9 +64,9 @@ runLimitedEval = runLimitedInterpreter . eval
     included.
 -}
 runLimitedEvalWithType
-    :: MonadIO m
+    :: (MonadIO m, MonadMask m)
     => String
-    -> m (Either InterpreterError String)
+    -> ExceptT InterpreterError m String
 runLimitedEvalWithType arg = runLimitedInterpreter $ do
     expr <- eval arg
     ty <- typeOf arg
@@ -69,9 +77,12 @@ runLimitedEvalWithType arg = runLimitedInterpreter $ do
     corresponding to an element. This is somewhat similar to
     @fmap show . read@.
 -}
-splitListStr :: MonadIO m => String -> m (Either InterpreterError [String])
+splitListStr
+    :: (MonadIO m, MonadMask m)
+    => String
+    -> ExceptT InterpreterError m [String]
 splitListStr =
-    fmap (read @[String] <$>)
+    fmap read
     . runLimitedInterpreter
     . eval
     . ("show <$> " <>)
@@ -82,41 +93,46 @@ splitListStr =
     between 1 and 'maxListLength' elements, with each element spanning no more
     than 'maxElementLength' characters.
 -}
-validateListStr :: MonadIO m => String -> m (Either InterpreterError String)
+validateListStr
+    :: (MonadIO m, MonadMask m)
+    => String
+    -> ExceptT InterpreterError m String
 validateListStr listStr = do
     list <- splitListStr listStr
-    pure $ case list of
-        Left err -> Left err
-        Right ls
-            | null ls -> Left EmptyListError
-            | isLongList ls -> Left ListTooLongError
-            | hasLongElement ls -> Left ElementTooLongError
-            | otherwise -> Right listStr
+    if
+        | null list -> throwE EmptyListError
+        | isLongList list -> throwE ListTooLongError
+        | hasLongElement list -> throwE ElementTooLongError
+        | otherwise -> pure listStr
     where
         isLongList = isLongerThan maxListLength
         hasLongElement = any (isLongerThan maxElementLength)
 
 {-|
+    Verify that the given expression corresponds to a list, and that the list
+    satisfies the given predicates; otherwise, throw the first error
+    encountered.
+-}
+validateListStrWith
+    :: (MonadIO m, MonadMask m)
+    => [([String] -> Bool, InterpreterError)]
+    -> String
+    -> ExceptT InterpreterError m String
+validateListStrWith criteria listStr = do
+    list <- splitListStr listStr
+    case find (not . ($ list) . fst) criteria of
+        Just (_, err) -> throwE err
+        Nothing -> pure listStr
+
+{-|
     Validate the list expression, then split it.
 -}
 validateSplitListStr
-    :: MonadIO m
+    :: (MonadIO m, MonadMask m)
     => String
-    -> m (Either InterpreterError [String])
+    -> ExceptT InterpreterError m [String]
 validateSplitListStr listStr =
-    either (pure . Left) splitListStr =<< validateListStr listStr
-
-{-|
-    Validate a plain list (not an expression representing a list).
--}
-validateList :: Show a => [a] -> Bool
-validateList =
-    and
-    . ([not . null, isShort, hasOnlyShortElements] <*>)
-    . pure
-    where
-        isShort = isNoLongerThan maxListLength
-        hasOnlyShortElements = all (isNoLongerThan maxElementLength . show)
+    splitListStr =<< validateListStr listStr
 
 isNoLongerThan :: Int -> [a] -> Bool
 isNoLongerThan maxLength = null . drop maxLength

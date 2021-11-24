@@ -27,6 +27,8 @@ dependencies:
 - linear
 - text
 - lens
+- exceptions
+- transformers
 - JuicyPixels
 - vty
 - vector
