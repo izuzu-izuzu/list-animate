@@ -7,12 +7,13 @@
 module Interactive.TUI.Append where
 
 import Control.Lens ((.~), (^.))
+import Control.Monad.Catch (MonadMask)
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Text (unpack)
 import Language.Haskell.Interpreter
     ( InterpreterError
     , MonadIO (liftIO)
     , parens
-    , setImports
     , typeOf
     )
 import Text.Printf (printf)
@@ -35,6 +36,13 @@ import Animations.Append
 
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
+
+data LoadResult = LoadResult
+    { _xs :: Either InterpreterError (String, [String])
+    , _ys :: Either InterpreterError (String, [String])
+    , _funcType :: Either InterpreterError String
+    , _result :: Either InterpreterError (String, [String])
+    }
 
 {-|
     App page title.
@@ -79,31 +87,11 @@ makeNote = strWrap $ printf
     maxElementLength
 
 {-|
-    Load the first input field as @xs@ in @xs ++ ys@, verifying that @xs@ is a
-    valid expression and satisfies the instructions given in 'makeNote'.
--}
-loadValidateXs :: MonadIO m => State e -> m (Either InterpreterError String)
-loadValidateXs state = do
-    let Input{_arg1} = parensInput . formState . (^. form) $ state
-    xs <- runLimitedEvalWithType $ unpack _arg1
-    either (pure . Left) validateListStr xs
-
-{-|
-    Load the second input field as @ys@ in @xs ++ ys@, verifying that @ys@ is a
-    valid expression that satisfies the instructions given in 'makeNote'.
--}
-loadValidateYs :: MonadIO m => State e -> m (Either InterpreterError String)
-loadValidateYs state = do
-    let Input{_arg2} = parensInput . formState . (^. form) $ state
-    ys <- runLimitedEvalWithType $ unpack _arg2
-    either (pure . Left) validateListStr ys
-
-{-|
     Expression used to determine the instantiated type of '(++)', given valid
     strings for @xs@ and @ys@.
 -}
-resultTypeExpr :: String -> String -> String
-resultTypeExpr = printf
+funcTypeEvalStr :: String -> String -> String
+funcTypeEvalStr xs ys = printf
     [r|
     let
         proxy :: t -> Proxy t
@@ -113,46 +101,37 @@ resultTypeExpr = printf
     in
         appendProxy (proxy %v) (proxy %v)
     |]
+    (parens xs)
+    (parens ys)
 
-{-|
-    Determine the instantiated type of '(++)'.
--}
-loadFuncType :: MonadIO m => State e -> m (Either InterpreterError String)
-loadFuncType state = do
-    xs <- fmap parens <$> loadValidateXs state
-    ys <- fmap parens <$> loadValidateYs state
-    case (xs, ys) of
-        (Right xs', Right ys') -> runLimitedInterpreter $ do
-            setImports
-                [ "Prelude"
-                , "Data.List"
-                , "Text.Show.Functions"
-                , "Data.Proxy"
-                ]
-            typeOf $ resultTypeExpr xs' ys'
-        (Left xsErr, _) -> pure $ Left xsErr
-        (_, Left ysErr) -> pure $ Left ysErr
-
-{-|
-    Evaluate @xs ++ ys@ and return the result as a string, roughly
-    corresponding to @show (xs ++ ys)@.
--}
-loadRawResult :: MonadIO m => State e -> m (Either InterpreterError String)
-loadRawResult state = do
+loadAll :: (MonadIO m, MonadMask m) => State e -> m LoadResult
+loadAll state = do
     let
         Input{_arg1, _arg2} = parensInput . formState . (^. form) $ state
-        xs = parens $ unpack _arg1
-        ys = parens $ unpack _arg2
-    runLimitedEvalWithType $ printf "%v ++ %v" xs ys
-
-{-|
-    Evaluate @xs ++ ys@ and return the result as a list of strings, roughly
-    corresponding to @fmap show (xs ++ ys)@.
--}
-loadResult :: MonadIO m => State e -> m (Either InterpreterError [String])
-loadResult state = do
-    rawResult <- fmap parens <$> loadRawResult state
-    either (pure . Left) splitListStr rawResult
+        xsStr = unpack _arg1
+        ysStr = unpack _arg2
+        criteria =
+            [ (not . isLongerThan 6, ListTooLongError)
+            , (not . any (isLongerThan 6), ElementTooLongError)
+            ]
+    xs <- runExceptT $ do
+        xsExpr <- validateListStrWith criteria =<< runLimitedEvalWithType xsStr
+        xsVal <- splitListStr xsExpr
+        pure (xsExpr, xsVal)
+    ys <- runExceptT $ do
+        ysExpr <- validateListStrWith criteria =<< runLimitedEvalWithType ysStr
+        ysVal <- splitListStr ysExpr
+        pure (ysExpr, ysVal)
+    funcType <-
+        runExceptT
+        . runLimitedInterpreter
+        . typeOf
+        $ funcTypeEvalStr xsStr ysStr
+    result <- runExceptT $ do
+        resultExpr <- runLimitedEvalWithType $ printf "%v ++ %v" xsStr ysStr
+        resultVal <- splitListStr resultExpr
+        pure (resultExpr, resultVal)
+    pure $ LoadResult xs ys funcType result
 
 {-|
     Preview the arguments and display any error prompts, either when the user
@@ -160,36 +139,41 @@ loadResult state = do
 -}
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
-    xs <- loadValidateXs state
-    ys <- loadValidateYs state
-    rawResult <- loadRawResult state
-    result <- loadResult state
+    loadResult <- loadAll state
+    previewEvent' state loadResult
+
+previewEvent' :: State e -> LoadResult -> EventM Name (Next (State e))
+previewEvent' state loadResult = do
     let
         focus = focusGetCurrent . formFocus . (^. form) $ state
-        xsStr = either makeErrorMessage id xs
-        ysStr = either makeErrorMessage id ys
-        resultStr = either makeErrorMessage id rawResult
+        LoadResult{_xs, _ys, _funcType, _result} = loadResult
+        ~[xsWidget, ysWidget, resultWidget] =
+            either
+                (withAttr "error" . strWrap . makeErrorMessage)
+                (strWrap . fst)
+            <$> [_xs, _ys, _result]
         animateResultPrompt =
-            withAttr "bold" $ str (funcDef <> ": ") <+> strWrap resultStr
-        animatePrompt = case (xs, ys, result) of
+            withAttr "bold" $ str (funcDef <> ": ") <+> resultWidget
+        animatePrompt = case (_xs, _ys, _result) of
             (Right _, Right _, Right _) -> animateResultPrompt
             (Right _, Right _, Left _) -> animateErrorPrompt
             _ -> emptyWidget
-        previewPrompt = case (xs, ys, result) of
-            (Right _, Right _, Right _) ->
-                animateAvailablePrompt
+        previewPrompt = case (_xs, _ys, _result) of
+            (Right _, Right _, Right _) -> animateAvailablePrompt
             _ -> emptyWidget
         prompt = case focus of
-            Just Arg1Field -> str "xs: " <+> strWrap xsStr
-            Just Arg2Field -> str "ys: " <+> strWrap ysStr
-            Just NavPreviewField ->
-                (str "xs: " <+> strWrap xsStr)
-                <=> (str "ys: " <+> strWrap ysStr)
-                <=> previewPrompt
-            Just NavAnimateField ->
-                (str "xs: " <+> strWrap xsStr)
-                <=> (str "ys: " <+> strWrap ysStr)
-                <=> animatePrompt
+            Just Arg1Field -> str "xs: " <+> xsWidget
+            Just Arg2Field -> str "ys: " <+> ysWidget
+            Just NavPreviewField -> vBox
+                [ str "xs: " <+> xsWidget
+                , str "ys: " <+> ysWidget
+                , previewPrompt
+                ]
+            Just NavAnimateField -> vBox
+                [ str "xs: " <+> xsWidget
+                , str "ys: " <+> ysWidget
+                , animatePrompt
+                ]
             _ -> emptyWidget
     continue . (output .~ prompt) $ state
 
@@ -200,15 +184,12 @@ previewEvent state = do
 -}
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
-    xs <- either (pure . Left) splitListStr =<< loadValidateXs state
-    ys <- either (pure . Left) splitListStr =<< loadValidateYs state
-    funcType <- loadFuncType state
-    result <- loadResult state
-    case (xs, ys, funcType, result) of
-        (Right xs', Right ys', Right funcType', Right _) ->
+    loadResult@LoadResult{_xs, _ys, _funcType, _result} <- loadAll state
+    case (_xs, _ys, _funcType, _result) of
+        (Right (_, xs'), Right (_, ys'), Right funcType', Right _) ->
             liftIO . reanimate $ appendDynamicAnimation funcType' xs' ys'
         _ -> pure ()
-    previewEvent state
+    previewEvent' state loadResult
 
 {-|
     Prompt for when all arguments are valid and an animation is available.
