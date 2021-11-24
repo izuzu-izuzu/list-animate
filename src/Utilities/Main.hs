@@ -10,14 +10,15 @@ module Utilities.Main
     ( -- * Convenience functions
       (-<)
     , splitInitLast
-      -- * LaTeX
-      -- ** Configurations
+      -- * Reanimate
+      -- ** LaTeX
+      -- *** Configurations
     , firaMonoCfg
-      -- ** Invoking LaTeX
+      -- *** Invoking LaTeX
     , latexCfgCenteredYWith
     , latexCfgChunksCenteredYWith
-      -- * SVG
-      -- ** Attributes
+      -- ** SVG
+      -- *** Attributes
     , svgCenter
     , svgCenterX
     , svgCenterY
@@ -30,7 +31,7 @@ module Utilities.Main
     , withTweenedColor
     , withTweenedStrokeColor
     , withTweenedFillColor
-      -- ** Transformations
+      -- *** Transformations
     , centerGroup
     , centerGroupX
     , centerGroupY
@@ -39,33 +40,35 @@ module Utilities.Main
     , distributeY
     , distributeWithSpacingX
     , distributeWithSpacingY
-      -- * Animations
-      -- ** Easing functions
+      -- ** Animations
+      -- *** Easing functions
     , cssCubicBezierS
     , snapInS
     , snapOutS
     , softSnapInS
     , softSnapOutS
-      -- ** Scenes
+      -- *** Scenes
     , forkLag
     , forkAll
     , forkAllWithLag
     , forkAllWithDifferentLags
-      -- *** Objects
+      -- **** Objects
     , oNewWithSvgPosition
     , oMoveTo
     , oMoveBy
     , oTweenContext
-      -- ** Effects
+      -- *** Effects
     , mkAnimationE
     , animateE
     , composeE
-      -- ** Scaling
+      -- *** Scaling
     , fitAnimationToSize
-      -- * Other
+      -- ** Other
     , mkColorPixel
     , mkBackgroundAxes
     , mkBackgroundGrid
+      -- * Brick
+    , strWrapBreak
     )
 where
 
@@ -75,6 +78,7 @@ import Data.List (find, intersperse)
 import Data.Text (Text, replace)
 import Graphics.SvgTree (Texture (ColorRef))
 import Linear (V2 (V2), lerp)
+import Text.Wrap (WrapSettings (breakLongWords), defaultWrapSettings)
 
 import Reanimate
 import Reanimate.ColorComponents (interpolateRGBA8, labComponents)
@@ -84,7 +88,17 @@ import Reanimate.LaTeX
     , latexCfg
     , latexCfgChunks
     )
-import Reanimate.Scene (Object, ObjectData, oContext, oTranslate, oTween, oModify, oNew)
+import Reanimate.Scene
+    ( Object
+    , ObjectData
+    , oContext
+    , oModify
+    , oNew
+    , oTranslate
+    , oTween
+    )
+
+import Brick
 
 infixl 1 -<
 
@@ -603,3 +617,6 @@ svgCenterX = fst . svgCenter
 -}
 svgCenterY :: SVG -> Double
 svgCenterY = snd . svgCenter
+
+strWrapBreak :: String -> Widget n
+strWrapBreak = strWrapWith (defaultWrapSettings {breakLongWords = True})

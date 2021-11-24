@@ -37,6 +37,8 @@ import Animations.Append
 import Interactive.TUI.Core
 import Interactive.TUI.Interpreter
 
+import Utilities.Main
+
 data LoadResult = LoadResult
     { _xs :: Either InterpreterError (String, [String])
     , _ys :: Either InterpreterError (String, [String])
@@ -104,14 +106,15 @@ funcTypeEvalStr xs ys = printf
     (parens xs)
     (parens ys)
 
-loadAll :: (MonadIO m, MonadMask m) => State e -> m LoadResult
-loadAll state = do
+load :: (MonadIO m, MonadMask m) => State e -> m LoadResult
+load state = do
     let
         Input{_arg1, _arg2} = parensInput . formState . (^. form) $ state
         xsStr = unpack _arg1
         ysStr = unpack _arg2
         criteria =
-            [ (not . isLongerThan 6, ListTooLongError)
+            [ (not . null, EmptyListError)
+            , (not . isLongerThan 6, ListTooLongError)
             , (not . any (isLongerThan 6), ElementTooLongError)
             ]
     xs <- runExceptT $ do
@@ -139,7 +142,7 @@ loadAll state = do
 -}
 previewEvent :: State e -> EventM Name (Next (State e))
 previewEvent state = do
-    loadResult <- loadAll state
+    loadResult <- load state
     previewEvent' state loadResult
 
 previewEvent' :: State e -> LoadResult -> EventM Name (Next (State e))
@@ -148,10 +151,7 @@ previewEvent' state loadResult = do
         focus = focusGetCurrent . formFocus . (^. form) $ state
         LoadResult{_xs, _ys, _funcType, _result} = loadResult
         ~[xsWidget, ysWidget, resultWidget] =
-            either
-                (withAttr "error" . strWrap . makeErrorMessage)
-                (strWrap . fst)
-            <$> [_xs, _ys, _result]
+            either makeErrorWidget (strWrapBreak . fst) <$> [_xs, _ys, _result]
         animateResultPrompt =
             withAttr "bold" $ str (funcDef <> ": ") <+> resultWidget
         animatePrompt = case (_xs, _ys, _result) of
@@ -184,7 +184,7 @@ previewEvent' state loadResult = do
 -}
 animateEvent :: State e -> EventM Name (Next (State e))
 animateEvent state = do
-    loadResult@LoadResult{_xs, _ys, _funcType, _result} <- loadAll state
+    loadResult@LoadResult{_xs, _ys, _funcType, _result} <- load state
     case (_xs, _ys, _funcType, _result) of
         (Right (_, xs'), Right (_, ys'), Right funcType', Right _) ->
             liftIO . reanimate $ appendDynamicAnimation funcType' xs' ys'

@@ -13,10 +13,12 @@ import Graphics.Vty
     , Key (KChar, KEnter, KEsc)
     , Modifier
     )
-import Language.Haskell.Interpreter (parens)
+import Language.Haskell.Interpreter (InterpreterError, parens)
 
 import Brick
 import Brick.Forms (Form, FormFieldState, radioCustomField, setFieldConcat)
+
+import Interactive.TUI.Interpreter
 
 {-|
     The user input record type, which hold 5 text input fields and a
@@ -165,3 +167,6 @@ parensInput =
     . fmap (%~ parensText)
     $ [arg1, arg2, arg3, arg4, arg5]
     where parensText = pack . parens . unpack
+
+makeErrorWidget :: InterpreterError -> Widget n
+makeErrorWidget = withAttr "error" . strWrap . makeErrorMessage
