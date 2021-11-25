@@ -1,16 +1,21 @@
 {-# OPTIONS_GHC -Wall #-}
 
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Interactive.TUI.Interpreter where
 
-import Control.Exception (evaluate)
+import Control.DeepSeq (force)
+import Control.Exception (evaluate, ErrorCall, try)
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Trans.Except (ExceptT (ExceptT), throwE)
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT), maybeToExceptT)
+import Data.Char (toLower)
 import Data.Foldable (find)
+import Data.List (isInfixOf)
 import Language.Haskell.Interpreter
     ( InterpreterError (UnknownError)
     , MonadIO (liftIO)
@@ -22,6 +27,7 @@ import Language.Haskell.Interpreter
     )
 import System.Timeout (timeout)
 import Text.Printf (printf)
+import Text.RawString.QQ (r)
 
 {-|
     Run an interpreter with a maximum duration and output length.
@@ -39,16 +45,19 @@ runLimitedInterpreter task = do
             , "Text.Show.Functions"
             ]
         task
-    timeoutResult <-
-        maybeToExceptT TimeoutError
-        . MaybeT
-        . liftIO
+    timeoutErrorCallTest <-
+        liftIO
         . timeout maxTimeout
+        . try @ErrorCall
         . evaluate
+        . force
         $ result
-    case drop maxOutputLength timeoutResult of
-        [] -> pure result
-        _ -> throwE OutputTooLongError
+    case timeoutErrorCallTest of
+        Nothing -> throwE TimeoutError
+        Just (Left _) -> throwE FoundErrorCallError
+        Just (Right result') -> case drop maxOutputLength result' of
+            [] -> pure result
+            _ -> throwE OutputTooLongError
 
 {-|
     'eval' a string using a limited interpreter.
@@ -157,49 +166,70 @@ maxElementLength = 6
 -}
 makeErrorMessage :: InterpreterError -> String
 makeErrorMessage TimeoutError = timeoutErrorMessage
+makeErrorMessage FoundErrorCallError = foundErrorCallErrorMessage
 makeErrorMessage OutputTooLongError = outputTooLongErrorMessage
 makeErrorMessage EmptyListError = emptyListErrorMessage
 makeErrorMessage ListTooLongError = listTooLongErrorMessage
 makeErrorMessage ElementTooLongError = elementTooLongErrorMessage
-makeErrorMessage _ = compileErrorMessage
+makeErrorMessage (fmap toLower . show -> err)
+    | "ambiguous type" `isInfixOf` err = ambiguousTypeErrorMessage
+    {-
+    | "couldn't match expected type" `isInfixOf` err =
+        mismatchedTypesErrorMessage
+    -}
+    | otherwise = genericErrorMessage
 
 noPreviewAvailableMessage :: String
 noPreviewAvailableMessage =
-    "No preview available.\n\
-    \Choose an argument field first, then try again."
+    [r|No preview available.
+Choose an argument field first, then try again.|]
 
-compileErrorMessage :: String
-compileErrorMessage =
-    "Invalid expression.\n\
-    \Perhaps your expression contains a syntax error or ambiguous type."
+genericErrorMessage :: String
+genericErrorMessage =
+    [r|Invalid expression.
+Perhaps your input contains invalid syntax or incorrect types.|]
+
+ambiguousTypeErrorMessage :: String
+ambiguousTypeErrorMessage =
+    [r|Found ambiguous type.
+Add type annotations to your input (e.g. "[] :: [Int]" instead of "[]").|]
+
+mismatchedTypesErrorMessage :: String
+mismatchedTypesErrorMessage =
+    [r|Found mismatched types.
+Ensure your input has the correct types (e.g. not using "head" on an Int).|]
 
 timeoutErrorMessage :: String
 timeoutErrorMessage =
-    "Timed out.\n\
-    \Perhaps you entered an infinite list or an infinitely recursive \
-    \expression."
+    [r|Timed out.
+Perhaps you entered an infinite list or an infinitely recursive value.|]
+
+foundErrorCallErrorMessage :: String
+foundErrorCallErrorMessage =
+    [r|Error detected.
+Perhaps you used `undefined` or an expression that results in an error.|]
 
 outputTooLongErrorMessage :: String
 outputTooLongErrorMessage = printf
-    "Output too long to be displayed.\n\
-    \The maximum output length that can be displayed is %v characters."
+    [r|Output too long to be displayed.
+The maximum output length that can be displayed is %v characters.|]
     maxOutputLength
 
 emptyListErrorMessage :: String
 emptyListErrorMessage =
-    "Empty list.\n\
-    \Ensure the list contains at least one element."
+    [r|Empty list.
+Ensure the list contains at least one element.|]
 
 listTooLongErrorMessage :: String
 listTooLongErrorMessage = printf
-    "List contains too many elements.\n\
-    \Ensure the list contains no more than %v elements."
+    [r|List contains too many elements.
+Ensure the list contains no more than %v elements.|]
     maxListLength
 
 elementTooLongErrorMessage :: String
 elementTooLongErrorMessage = printf
-    "Found element too long to be animated.\n\
-    \Ensure all elements can be displayed in no more than %v characters."
+    [r|Found element too long to be animated.
+Ensure all elements can be displayed in no more than %v characters.|]
     maxElementLength
 
 {-|
@@ -218,6 +248,9 @@ maxOutputLength = 200
 
 pattern TimeoutError :: InterpreterError
 pattern TimeoutError = UnknownError "Timeout"
+
+pattern FoundErrorCallError :: InterpreterError
+pattern FoundErrorCallError = UnknownError "FoundErrorCall"
 
 pattern OutputTooLongError :: InterpreterError
 pattern OutputTooLongError = UnknownError "OutputTooLong"
