@@ -94,7 +94,7 @@ splitListStr =
     fmap read
     . runLimitedInterpreter
     . eval
-    . ("show <$> " <>)
+    . printf "(show <$> (%v)) :: [String]"
     . parens
 
 {-|
